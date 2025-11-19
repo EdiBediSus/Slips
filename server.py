@@ -2,51 +2,52 @@ import asyncio
 import websockets
 import json
 import uuid
-import os
+from http.server import SimpleHTTPRequestHandler, HTTPServer
+import threading
+
+PORT = 8000
 
 clients = {}
 players = {}
 
-async def handler(ws):
-    # Assign a unique player ID
+# WebSocket server
+async def ws_handler(ws):
     player_id = str(uuid.uuid4())
     clients[player_id] = ws
+    players[player_id] = {"x":400,"y":300,"bullets":[],"health":3,"alive":True,"score":0}
 
-    # Initialize player state
-    players[player_id] = {
-        "x": 400,
-        "y": 300,
-        "bullets": [],
-        "health": 3,
-        "alive": True,
-        "score": 0
-    }
-
-    # Send the player their ID
-    await ws.send(json.dumps({"type": "init", "id": player_id}))
+    await ws.send(json.dumps({"type":"init","id":player_id}))
 
     try:
-        async for message in ws:
-            data = json.loads(message)
-            if data.get("type") == "update":
+        async for msg in ws:
+            data = json.loads(msg)
+            if data.get("type")=="update":
                 players[player_id] = data["state"]
     finally:
-        # Remove disconnected player
         del clients[player_id]
         del players[player_id]
 
-# Broadcast all players every 50ms (~20 FPS)
-async def broadcaster():
+async def broadcast():
     while True:
         if clients:
-            state = json.dumps({"type": "state", "players": players})
+            state = json.dumps({"type":"state","players":players})
             await asyncio.gather(*(c.send(state) for c in clients.values()))
         await asyncio.sleep(0.05)
 
-async def main():
-    port = int(os.environ.get("PORT", 6510))
-    async with websockets.serve(handler, "0.0.0.0", port):
-        print(f"Server running on ws://0.0.0.0:{port}")
-        await broadcaster()  # Run broadcaster forever
+def start_ws():
+    asyncio.set_event_loop(asyncio.new_event_loop())
+    loop = asyncio.get_event_loop()
+    start_server = websockets.serve(ws_handler, "0.0.0.0", 8765)
+    loop.run_until_complete(start_server)
+    loop.run_until_complete(broadcast())
+    loop.run_forever()
 
-asyncio.run(main())
+# Start HTTP server to serve index.html
+def start_http():
+    server = HTTPServer(('0.0.0.0', PORT), SimpleHTTPRequestHandler)
+    print(f"Serving HTTP on port {PORT}")
+    server.serve_forever()
+
+# Start both servers
+threading.Thread(target=start_ws).start()
+threading.Thread(target=start_http).start()
