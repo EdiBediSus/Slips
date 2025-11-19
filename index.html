@@ -18,88 +18,150 @@ canvas.width = 800;
 canvas.height = 600;
 
 const speed = 4;
-let player = { x: 400, y: 300, color: "cyan", id: null };
-let bullets = [];
-let otherPlayers = {};
+const radius = 15;
+const maxHealth = 3;
 
+let player = { x:400, y:300, color:"cyan", id:null, health:maxHealth, alive:true, respawn:0, bullets:[], score:0 };
+let others = {};
 let keys = {};
 
-// ======= WebSocket =======
-const WS_URL = "https://ed-1-yazy.onrender.com"; // <- Replace with your Render server
+// ===== WebSocket =====
+const WS_URL = "wss://ed-1-yazy.onrender.com"; // Your Render WebSocket
 const ws = new WebSocket(WS_URL);
 
 ws.onopen = () => console.log("Connected to server");
 
 ws.onmessage = msg => {
     const data = JSON.parse(msg.data);
-    if(data.type === "state") {
-        if(data.playerId !== player.id){
-            otherPlayers[data.playerId] = data.state;
+    if(data.type === "state"){
+        others = {};
+        for(let id in data.players){
+            if(id !== player.id) others[id] = data.players[id];
+            else {
+                player.id = id;
+                player.health = data.players[id].health;
+                player.alive = data.players[id].alive;
+                player.x = data.players[id].x;
+                player.y = data.players[id].y;
+                player.bullets = data.players[id].bullets || [];
+                player.score = data.players[id].score;
+            }
         }
-    }
-    if(data.type === "leave") {
-        delete otherPlayers[data.playerId];
     }
 };
 
-// ======= Controls =======
+// ===== Controls =====
 document.addEventListener("keydown", e => keys[e.key] = true);
 document.addEventListener("keyup", e => keys[e.key] = false);
+
 canvas.addEventListener("click", e => {
+    if(!player.alive) return;
     const rect = canvas.getBoundingClientRect();
     const mx = e.clientX - rect.left;
     const my = e.clientY - rect.top;
-    bullets.push({ x: player.x, y: player.y, dx: (mx-player.x)/20, dy: (my-player.y)/20 });
+    player.bullets.push({ x: player.x, y: player.y, dx:(mx-player.x)/20, dy:(my-player.y)/20 });
 });
 
-// ======= Game Loop =======
+// ===== Update =====
 function update(){
-    if(keys["ArrowUp"] || keys["w"]) player.y -= speed;
-    if(keys["ArrowDown"] || keys["s"]) player.y += speed;
-    if(keys["ArrowLeft"] || keys["a"]) player.x -= speed;
-    if(keys["ArrowRight"] || keys["d"]) player.x += speed;
+    if(player.alive){
+        if(keys["ArrowUp"] || keys["w"]) player.y -= speed;
+        if(keys["ArrowDown"] || keys["s"]) player.y += speed;
+        if(keys["ArrowLeft"] || keys["a"]) player.x -= speed;
+        if(keys["ArrowRight"] || keys["d"]) player.x += speed;
 
-    bullets.forEach(b => { b.x += b.dx; b.y += b.dy; });
-    bullets = bullets.filter(b => b.x>0 && b.x<canvas.width && b.y>0 && b.y<canvas.height);
+        player.x = Math.max(radius, Math.min(canvas.width-radius, player.x));
+        player.y = Math.max(radius, Math.min(canvas.height-radius, player.y));
 
-    // Send update to server
+        player.bullets.forEach(b => { b.x += b.dx; b.y += b.dy; });
+        player.bullets = player.bullets.filter(b => b.x>0 && b.x<canvas.width && b.y>0 && b.y<canvas.height);
+
+        // Check collisions with other players
+        for(let id in others){
+            let op = others[id];
+            if(op.alive && op.bullets){
+                op.bullets.forEach((b,i)=>{
+                    const dx = b.x - player.x;
+                    const dy = b.y - player.y;
+                    if(Math.sqrt(dx*dx + dy*dy) < radius+10 && player.alive){
+                        op.bullets.splice(i,1);
+                        player.health--;
+                        if(player.health<=0){
+                            player.alive = false;
+                            player.respawn = 180; // 3 seconds
+                            player.bullets = [];
+                        }
+                    }
+                });
+            }
+        }
+    } else {
+        player.respawn--;
+        if(player.respawn<=0){
+            player.alive = true;
+            player.health = maxHealth;
+            player.x = Math.random()*(canvas.width-2*radius)+radius;
+            player.y = Math.random()*(canvas.height-2*radius)+radius;
+        }
+    }
+
+    // Send state to server
     if(ws.readyState === WebSocket.OPEN){
-        ws.send(JSON.stringify({ type:"update", state:{x:player.x, y:player.y, bullets: bullets} }));
+        ws.send(JSON.stringify({ type:"update", state: player }));
     }
 }
 
-// ======= Draw =======
+// ===== Draw =====
 function draw(){
     ctx.clearRect(0,0,canvas.width,canvas.height);
 
     // Draw self
-    ctx.fillStyle = player.color;
-    ctx.fillRect(player.x-10, player.y-10, 20, 20);
+    if(player.alive){
+        ctx.fillStyle = player.color;
+        ctx.beginPath();
+        ctx.arc(player.x, player.y, radius, 0, Math.PI*2);
+        ctx.fill();
+    } else {
+        ctx.fillStyle="#fff";
+        ctx.font="40px sans-serif";
+        ctx.fillText("Respawn: "+Math.ceil(player.respawn/60), canvas.width/2-100, canvas.height/2);
+    }
 
     // Draw bullets
-    bullets.forEach(b => {
-        ctx.fillStyle = "yellow";
-        ctx.fillRect(b.x-5, b.y-5, 10, 10);
+    player.bullets.forEach(b=>{
+        ctx.fillStyle="yellow";
+        ctx.fillRect(b.x-5,b.y-5,10,10);
     });
 
     // Draw other players
-    for(let id in otherPlayers){
-        let p = otherPlayers[id];
-        ctx.fillStyle = "red";
-        ctx.fillRect(p.x-10, p.y-10, 20, 20);
-        if(p.bullets) p.bullets.forEach(b => {
-            ctx.fillStyle = "orange";
-            ctx.fillRect(b.x-5, b.y-5, 10, 10);
+    for(let id in others){
+        let op = others[id];
+        if(op.alive){
+            ctx.fillStyle="red";
+            ctx.beginPath();
+            ctx.arc(op.x, op.y, radius, 0, Math.PI*2);
+            ctx.fill();
+        }
+        if(op.bullets) op.bullets.forEach(b=>{
+            ctx.fillStyle="orange";
+            ctx.fillRect(b.x-5,b.y-5,10,10);
         });
     }
+
+    // Draw health bar
+    ctx.fillStyle="red";
+    ctx.fillRect(10,30,player.health*30,10);
+    ctx.strokeStyle="#fff";
+    ctx.strokeRect(10,30,maxHealth*30,10);
+
+    // Draw score
+    ctx.fillStyle="#fff";
+    ctx.font="16px sans-serif";
+    ctx.fillText("Score: "+player.score,10,20);
 }
 
-// ======= Main Loop =======
-function loop(){
-    update();
-    draw();
-    requestAnimationFrame(loop);
-}
+// ===== Main Loop =====
+function loop(){ update(); draw(); requestAnimationFrame(loop); }
 loop();
 </script>
 </body>
