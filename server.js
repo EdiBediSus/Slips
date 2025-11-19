@@ -1,37 +1,34 @@
 const WebSocket = require("ws");
 
-const PORT = process.env.PORT || 10000;
-const wss = new WebSocket.Server({ port: PORT });
+const wss = new WebSocket.Server({ port: 6510 });
+const clients = new Map();
 
+console.log("Server running on ws://0.0.0.0:6510");
 
-console.log("WebSocket server running on port", PORT);
+wss.on("connection", (ws) => {
+  const id = Date.now() + "-" + Math.floor(Math.random() * 1000);
+  const player = { x: 400, y: 300, bullets: [], health: 3, alive: true, score: 0 };
+  clients.set(ws, { id, player });
 
-let clients = new Map();
-
-function broadcast(obj, except = null) {
-  const msg = JSON.stringify(obj);
-  for (const [id, ws] of clients) {
-    if (ws.readyState === WebSocket.OPEN && id !== except) ws.send(msg);
-  }
-}
-
-wss.on("connection", ws => {
-  const myId = Math.floor(Math.random() * 1000000);
-  clients.set(myId, ws);
-  console.log("Client connected:", myId);
-
-  ws.on("message", message => {
-    const data = JSON.parse(message);
-
-    if (data.type === "update") {
-      // broadcast player position + bullets to everyone else
-      broadcast({ type: "state", playerId: myId, state: data.state }, myId);
+  ws.on("message", (msg) => {
+    try {
+      const data = JSON.parse(msg);
+      if (data.type === "update") {
+        clients.get(ws).player = data.state;
+      }
+      // Broadcast all players
+      const state = { type: "state", players: {} };
+      clients.forEach((p, c) => {
+        state.players[p.id] = p.player;
+      });
+      const stateMsg = JSON.stringify(state);
+      clients.forEach((_, c) => { c.send(stateMsg); });
+    } catch (e) {
+      console.error(e);
     }
   });
 
   ws.on("close", () => {
-    clients.delete(myId);
-    broadcast({ type: "leave", playerId: myId });
-    console.log("Client disconnected:", myId);
+    clients.delete(ws);
   });
 });
