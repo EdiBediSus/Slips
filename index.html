@@ -26,25 +26,32 @@ let others = {};
 let keys = {};
 
 // ===== WebSocket =====
-const WS_URL = "https://ed-1-yazy.onrender.com"; // replace with your Node.js server
+const WS_URL = "wss://<YOUR_RENDER_URL>:6510"; // replace with your Render server
 const ws = new WebSocket(WS_URL);
 
 ws.onopen = () => console.log("Connected to server");
 
+// Handle incoming messages
 ws.onmessage = msg => {
     const data = JSON.parse(msg.data);
-    if(data.type === "state"){
+
+    if(data.type === "init") {
+        // Server tells us our ID
+        player.id = data.id;
+        console.log("My ID:", player.id);
+    }
+
+    if(data.type === "state") {
         others = {};
         for(let id in data.players){
             if(id !== player.id) others[id] = data.players[id];
             else {
-                player.id = id;
-                player.health = data.players[id].health;
-                player.alive = data.players[id].alive;
-                player.x = data.players[id].x;
-                player.y = data.players[id].y;
-                player.bullets = data.players[id].bullets || [];
-                player.score = data.players[id].score;
+                // Update own player info from server (optional)
+                const p = data.players[id];
+                player.health = p.health;
+                player.alive = p.alive;
+                player.bullets = p.bullets || [];
+                player.score = p.score;
             }
         }
     }
@@ -166,4 +173,3 @@ loop();
 </script>
 </body>
 </html>
-
