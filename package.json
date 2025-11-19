@@ -1,9 +1,9 @@
 {
-  "name": "slipper-server",
+  "name": "slipper-multiplayer",
   "version": "1.0.0",
   "main": "server.js",
   "dependencies": {
-    "ws": "^8.14.2"
+    "ws": "^8.17.0"
   },
   "scripts": {
     "start": "node server.js"
