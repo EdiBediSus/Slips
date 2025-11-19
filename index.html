@@ -26,27 +26,24 @@ let others = {};
 let keys = {};
 
 // ===== WebSocket =====
-const WS_URL = "https://ed-1-yazy.onrender.com"; // replace with your Render server
+const WS_URL = "ws://localhost:6510"; // use ws://localhost:6510 for local test
+// If deployed on Render use: const WS_URL = "wss://<YOUR_RENDER_URL>";
 const ws = new WebSocket(WS_URL);
 
 ws.onopen = () => console.log("Connected to server");
 
-// Handle incoming messages
+// Handle messages
 ws.onmessage = msg => {
     const data = JSON.parse(msg.data);
-
-    if(data.type === "init") {
-        // Server tells us our ID
+    if(data.type === "init"){
         player.id = data.id;
         console.log("My ID:", player.id);
     }
-
-    if(data.type === "state") {
+    if(data.type === "state"){
         others = {};
         for(let id in data.players){
             if(id !== player.id) others[id] = data.players[id];
             else {
-                // Update own player info from server (optional)
                 const p = data.players[id];
                 player.health = p.health;
                 player.alive = p.alive;
@@ -83,7 +80,7 @@ function update(){
         player.bullets.forEach(b => { b.x += b.dx; b.y += b.dy; });
         player.bullets = player.bullets.filter(b => b.x>0 && b.x<canvas.width && b.y>0 && b.y<canvas.height);
 
-        // Check collisions with other players' bullets
+        // Check collision with other players' bullets
         for(let id in others){
             let op = others[id];
             if(op.alive && op.bullets){
@@ -122,11 +119,10 @@ function update(){
 function draw(){
     ctx.clearRect(0,0,canvas.width,canvas.height);
 
-    // Draw self
     if(player.alive){
         ctx.fillStyle = player.color;
         ctx.beginPath();
-        ctx.arc(player.x, player.y, radius, 0, Math.PI*2);
+        ctx.arc(player.x, player.y, radius,0,Math.PI*2);
         ctx.fill();
     } else {
         ctx.fillStyle="#fff";
@@ -134,19 +130,17 @@ function draw(){
         ctx.fillText("Respawn: "+Math.ceil(player.respawn/60), canvas.width/2-100, canvas.height/2);
     }
 
-    // Draw bullets
     player.bullets.forEach(b=>{
         ctx.fillStyle="yellow";
         ctx.fillRect(b.x-5,b.y-5,10,10);
     });
 
-    // Draw other players
     for(let id in others){
         let op = others[id];
         if(op.alive){
             ctx.fillStyle="red";
             ctx.beginPath();
-            ctx.arc(op.x, op.y, radius, 0, Math.PI*2);
+            ctx.arc(op.x, op.y, radius,0,Math.PI*2);
             ctx.fill();
         }
         if(op.bullets) op.bullets.forEach(b=>{
@@ -155,13 +149,11 @@ function draw(){
         });
     }
 
-    // Health bar
     ctx.fillStyle="red";
     ctx.fillRect(10,30,player.health*30,10);
     ctx.strokeStyle="#fff";
     ctx.strokeRect(10,30,maxHealth*30,10);
 
-    // Score
     ctx.fillStyle="#fff";
     ctx.font="16px sans-serif";
     ctx.fillText("Score: "+player.score,10,20);
@@ -173,4 +165,3 @@ loop();
 </script>
 </body>
 </html>
-
