@@ -20,7 +20,6 @@ canvas.height = 600;
 
 let player = { id: null, x: 400, y: 300, bullets: [] };
 let players = {}; // other players
-
 let keys = {};
 
 const ws = new WebSocket("wss://slips-2.onrender.com");
@@ -90,7 +89,7 @@ function update() {
 
 // DRAW
 function draw() {
-    ctx.clearRect(0,0,canvas.width,canvas.height);
+    ctx.clearRect(0, 0, canvas.width, canvas.height);
 
     // Draw myself
     ctx.fillStyle = "cyan";
@@ -103,19 +102,16 @@ function draw() {
 
     // Draw others
     for (const id in players) {
-        if (id === player.id) continue; // 🔥 FIX: ignore yourself
+        if (String(id) === String(player.id)) continue; // ignore yourself
 
         const p = players[id];
-
         ctx.fillStyle = "red";
         ctx.fillRect(p.x - 10, p.y - 10, 20, 20);
 
-        if (p.bullets) {
-            p.bullets.forEach(b => {
-                ctx.fillStyle = "orange";
-                ctx.fillRect(b.x - 4, b.y - 4, 8, 8);
-            });
-        }
+        (p.bullets || []).forEach(b => {
+            ctx.fillStyle = "orange";
+            ctx.fillRect(b.x - 4, b.y - 4, 8, 8);
+        });
     }
 }
 
@@ -129,5 +125,3 @@ loop();
 
 </body>
 </html>
-
-
