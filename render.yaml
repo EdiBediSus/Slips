@@ -1,0 +1,7 @@
+services:
+  - type: web
+    name: slipper-ws
+    env: python
+    startCommand: "python server.py"
+    plan: free
+    envVars: []
