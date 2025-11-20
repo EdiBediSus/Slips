@@ -17,7 +17,7 @@ const ctx = canvas.getContext("2d");
 canvas.width = 800;
 canvas.height = 600;
 
-const WS_URL = "wss://slips-abwi.onrender.com";
+const WS_URL = "wss://slips-1.onrender.com";  // your Render server WebSocket
 const ws = new WebSocket(WS_URL);
 
 let player = { x: 400, y: 300, bullets: [] };
@@ -26,7 +26,6 @@ let keys = {};
 
 // WebSocket events
 ws.onopen = () => console.log("Connected to Render server");
-
 ws.onmessage = msg => {
     const data = JSON.parse(msg.data);
     if(data.type === "state"){
