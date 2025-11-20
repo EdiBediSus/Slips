@@ -18,60 +18,104 @@ const ctx = canvas.getContext("2d");
 canvas.width = 800;
 canvas.height = 600;
 
-let player = { x: 400, y: 300, color: "cyan" };
-let keys = {};
-let players = {}; // all players from server
+let player = { id: null, x: 400, y: 300, bullets: [] };
+let players = {}; // other players
 
-// CONNECT TO YOUR PYTHON SERVER
+let keys = {};
+
 const ws = new WebSocket("wss://slips-1.onrender.com");
 
-ws.onopen = () => console.log("Connected to WebSocket");
+ws.onopen = () => console.log("Connected");
 
-// Receive updates
-ws.onmessage = (msg) => {
+ws.onmessage = msg => {
     const data = JSON.parse(msg.data);
 
+    // Server gives us our ID
+    if (data.type === "id") {
+        player.id = data.id;
+        return;
+    }
+
+    // Update all players
     if (data.type === "players") {
         players = data.players;
     }
 };
 
-// Controls
+// CONTROLS
 document.addEventListener("keydown", e => keys[e.key] = true);
 document.addEventListener("keyup", e => delete keys[e.key]);
 
+// SHOOT
+canvas.addEventListener("click", e => {
+    const rect = canvas.getBoundingClientRect();
+    const mx = e.clientX - rect.left;
+    const my = e.clientY - rect.top;
+
+    const dx = (mx - player.x) / 15;
+    const dy = (my - player.y) / 15;
+
+    player.bullets.push({ x: player.x, y: player.y, dx, dy });
+});
+
+// UPDATE LOOP
 function update() {
+    // Movement
     if (keys["ArrowUp"] || keys["w"]) player.y -= 4;
     if (keys["ArrowDown"] || keys["s"]) player.y += 4;
     if (keys["ArrowLeft"] || keys["a"]) player.x -= 4;
     if (keys["ArrowRight"] || keys["d"]) player.x += 4;
 
-    // Send player position
-    if (ws.readyState === WebSocket.OPEN) {
+    // Bullets
+    player.bullets.forEach(b => {
+        b.x += b.dx;
+        b.y += b.dy;
+    });
+
+    player.bullets = player.bullets.filter(b =>
+        b.x > 0 && b.x < canvas.width && b.y > 0 && b.y < canvas.height
+    );
+
+    // Send to server
+    if (ws.readyState === WebSocket.OPEN && player.id) {
         ws.send(JSON.stringify({
             type: "update",
+            id: player.id,
             x: player.x,
-            y: player.y
+            y: player.y,
+            bullets: player.bullets
         }));
     }
 }
 
+// DRAW
 function draw() {
-    ctx.clearRect(0, 0, canvas.width, canvas.height);
+    ctx.clearRect(0,0,canvas.width,canvas.height);
 
     // Draw myself
     ctx.fillStyle = "cyan";
     ctx.fillRect(player.x - 10, player.y - 10, 20, 20);
 
+    player.bullets.forEach(b => {
+        ctx.fillStyle = "yellow";
+        ctx.fillRect(b.x - 4, b.y - 4, 8, 8);
+    });
+
     // Draw others
     for (const id in players) {
-        const p = players[id];
+        if (id === player.id) continue; // 🔥 FIX: ignore yourself
 
-        // Skip drawing myself (approx position match)
-        if (Math.abs(p.x - player.x) < 1 && Math.abs(p.y - player.y) < 1) continue;
+        const p = players[id];
 
         ctx.fillStyle = "red";
         ctx.fillRect(p.x - 10, p.y - 10, 20, 20);
+
+        if (p.bullets) {
+            p.bullets.forEach(b => {
+                ctx.fillStyle = "orange";
+                ctx.fillRect(b.x - 4, b.y - 4, 8, 8);
+            });
+        }
     }
 }
 
