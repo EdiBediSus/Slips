@@ -1,36 +1,49 @@
 import asyncio
-import websockets
+from websockets.server import serve
 import json
+import os
 
-players = {}
+players = {}  # { player_id: {"x":0, "y":0} }
 
-async def handler(ws, path):
+async def handler(ws):
     player_id = id(ws)
-    players[player_id] = {"x": 400, "y": 300, "bullets": []}
-    print(f"Player {player_id} connected")
+    players[player_id] = {"x": 100, "y": 100}
+
+    print("Player joined:", player_id)
 
     try:
-        async for message in ws:
-            data = json.loads(message)
+        async for msg in ws:
+            data = json.loads(msg)
 
             if data["type"] == "update":
-                players[player_id] = data["state"]
+                players[player_id] = {"x": data["x"], "y": data["y"]}
 
-            # broadcast state to this player
-            for pid, state in players.items():
-                if pid != player_id:
-                    await ws.send(json.dumps({
-                        "type": "state",
-                        "playerId": pid,
-                        "state": state
-                    }))
+                # broadcast to all players
+                update = {
+                    "type": "players",
+                    "players": players
+                }
+
+                webs = list(players.keys())
+                for p in webs:
+                    try:
+                        await ws.send(json.dumps(update))
+                    except:
+                        pass
+
     except:
         pass
-    finally:
-        del players[player_id]
-        print(f"Player {player_id} disconnected")
 
-start_server = websockets.serve(handler, "0.0.0.0", 10000)
+    # player leaves
+    del players[player_id]
+    print("Player left:", player_id)
 
-asyncio.get_event_loop().run_until_complete(start_server)
-asyncio.get_event_loop().run_forever()
+
+async def main():
+    port = int(os.environ.get("PORT", 10000))
+    print("Starting server on port", port)
+
+    async with serve(handler, "0.0.0.0", port):
+        await asyncio.Future()
+
+asyncio.run(main())
