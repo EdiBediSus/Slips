@@ -1,9 +1,9 @@
 import asyncio
-from websockets.server import serve
 import json
 import os
+from websockets.server import serve
 
-players = {}  # { player_id: {"x":0, "y":0} }
+players = {}  # player_id -> {x, y}
 
 async def handler(ws):
     player_id = id(ws)
@@ -18,12 +18,12 @@ async def handler(ws):
             if data["type"] == "update":
                 players[player_id] = {"x": data["x"], "y": data["y"]}
 
-                # broadcast to all players
                 update = {
                     "type": "players",
                     "players": players
                 }
 
+                # broadcast to all connected players
                 webs = list(players.keys())
                 for p in webs:
                     try:
@@ -31,19 +31,21 @@ async def handler(ws):
                     except:
                         pass
 
-    except:
-        pass
+    except Exception as e:
+        print("Player error:", e)
 
-    # player leaves
+    # disconnect
     del players[player_id]
     print("Player left:", player_id)
 
 
 async def main():
     port = int(os.environ.get("PORT", 10000))
-    print("Starting server on port", port)
+    print("Starting WebSocket server on 0.0.0.0:" + str(port))
 
     async with serve(handler, "0.0.0.0", port):
-        await asyncio.Future()
+        await asyncio.Future()  # run forever
 
-asyncio.run(main())
+
+if __name__ == "__main__":
+    asyncio.run(main())
