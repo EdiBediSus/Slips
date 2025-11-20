@@ -20,23 +20,20 @@ canvas.height = 600;
 
 let playerId = null;
 let player = { x: 400, y: 300, bullets: [] };
-let players = {}; // all players from server
+let players = {};
 let keys = {};
-
 const speed = 4;
 
-// CONNECT TO YOUR PYTHON SERVER 👇
-// CHANGE THIS AFTER DEPLOYING TO RENDER
+// CONNECT TO YOUR PYTHON SERVER ✔
 const ws = new WebSocket("wss://ed-1-yazy.onrender.com");
 
 ws.onopen = () => {
-    console.log("Connected to server");
+    console.log("Connected to Render server");
 };
 
 ws.onmessage = (msg) => {
     const data = JSON.parse(msg.data);
 
-    // first message gives your player id
     if (data.type === "id") {
         playerId = data.id;
         return;
@@ -47,7 +44,6 @@ ws.onmessage = (msg) => {
     }
 };
 
-// controls
 document.addEventListener("keydown", e => keys[e.key] = true);
 document.addEventListener("keyup", e => keys[e.key] = false);
 
@@ -65,20 +61,18 @@ canvas.addEventListener("click", e => {
 });
 
 function updatePlayer() {
-    if (!playerId) return; // not connected yet
+    if (!playerId) return;
 
     if (keys["w"] || keys["ArrowUp"]) player.y -= speed;
     if (keys["s"] || keys["ArrowDown"]) player.y += speed;
     if (keys["a"] || keys["ArrowLeft"]) player.x -= speed;
     if (keys["d"] || keys["ArrowRight"]) player.x += speed;
 
-    // update bullets
     player.bullets.forEach(b => {
         b.x += b.dx;
         b.y += b.dy;
     });
 
-    // send state to server
     if (ws.readyState === WebSocket.OPEN) {
         ws.send(JSON.stringify({
             type: "update",
@@ -92,14 +86,12 @@ function draw() {
 
     if (!playerId) return;
 
-    // draw all players
     for (let id in players) {
         const p = players[id];
 
         ctx.fillStyle = (id === playerId) ? "cyan" : "red";
         ctx.fillRect(p.x - 10, p.y - 10, 20, 20);
 
-        // draw bullets
         if (p.bullets) {
             p.bullets.forEach(b => {
                 ctx.fillStyle = (id === playerId) ? "yellow" : "orange";
