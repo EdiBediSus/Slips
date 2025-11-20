@@ -1,15 +1,14 @@
 <!DOCTYPE html>
-<html lang="en">
+<html>
 <head>
 <meta charset="UTF-8">
-<title>Slippers Multiplayer</title>
+<title>Slipper Multiplayer</title>
 <style>
-    body { margin:0; overflow:hidden; background:#111; }
-    canvas { display:block; margin:0 auto; background:#222; }
+  body { margin:0; overflow:hidden; background:#333; }
+  canvas { display:block; margin:0 auto; background:#222; }
 </style>
 </head>
 <body>
-
 <canvas id="game"></canvas>
 
 <script>
@@ -18,29 +17,21 @@ const ctx = canvas.getContext("2d");
 canvas.width = 800;
 canvas.height = 600;
 
-let playerId = null;
-let player = { x: 400, y: 300, bullets: [] };
-let players = {};
+const WS_URL = "wss://ed-1-yazy.onrender.com";  
+const ws = new WebSocket(WS_URL);
+
+let player = { x: 400, y: 300, color: "cyan" };
+let bullets = [];
+let otherPlayers = {};
 let keys = {};
-const speed = 4;
 
-// CONNECT TO YOUR PYTHON SERVER ✔
-const ws = new WebSocket("wss://ed-1-yazy.onrender.com");
+ws.onopen = () => console.log("Connected to server");
 
-ws.onopen = () => {
-    console.log("Connected to Render server");
-};
-
-ws.onmessage = (msg) => {
+ws.onmessage = msg => {
     const data = JSON.parse(msg.data);
 
-    if (data.type === "id") {
-        playerId = data.id;
-        return;
-    }
-
-    if (data.type === "state") {
-        players = data.players;
+    if(data.type === "state"){
+        otherPlayers[data.playerId] = data.state;
     }
 };
 
@@ -48,65 +39,51 @@ document.addEventListener("keydown", e => keys[e.key] = true);
 document.addEventListener("keyup", e => keys[e.key] = false);
 
 canvas.addEventListener("click", e => {
-    const rect = canvas.getBoundingClientRect();
-    const mx = e.clientX - rect.left;
-    const my = e.clientY - rect.top;
-
-    player.bullets.push({
-        x: player.x,
-        y: player.y,
-        dx: (mx - player.x) / 15,
-        dy: (my - player.y) / 15
-    });
+    const r = canvas.getBoundingClientRect();
+    const mx = e.clientX - r.left;
+    const my = e.clientY - r.top;
+    bullets.push({ x: player.x, y: player.y, dx:(mx-player.x)/20, dy:(my-player.y)/20 });
 });
 
-function updatePlayer() {
-    if (!playerId) return;
+function update(){
+    if(keys.w) player.y -= 4;
+    if(keys.s) player.y += 4;
+    if(keys.a) player.x -= 4;
+    if(keys.d) player.x += 4;
 
-    if (keys["w"] || keys["ArrowUp"]) player.y -= speed;
-    if (keys["s"] || keys["ArrowDown"]) player.y += speed;
-    if (keys["a"] || keys["ArrowLeft"]) player.x -= speed;
-    if (keys["d"] || keys["ArrowRight"]) player.x += speed;
+    bullets.forEach(b => { b.x += b.dx; b.y += b.dy; });
 
-    player.bullets.forEach(b => {
-        b.x += b.dx;
-        b.y += b.dy;
-    });
-
-    if (ws.readyState === WebSocket.OPEN) {
+    if(ws.readyState === WebSocket.OPEN){
         ws.send(JSON.stringify({
-            type: "update",
-            state: player
+            type:"update",
+            state:{ x:player.x, y:player.y, bullets }
         }));
     }
 }
 
-function draw() {
-    ctx.clearRect(0, 0, canvas.width, canvas.height);
+function draw(){
+    ctx.clearRect(0,0,800,600);
 
-    if (!playerId) return;
+    ctx.fillStyle = player.color;
+    ctx.fillRect(player.x-10, player.y-10, 20, 20);
 
-    for (let id in players) {
-        const p = players[id];
+    bullets.forEach(b => {
+        ctx.fillStyle = "yellow";
+        ctx.fillRect(b.x-3, b.y-3, 6, 6);
+    });
 
-        ctx.fillStyle = (id === playerId) ? "cyan" : "red";
-        ctx.fillRect(p.x - 10, p.y - 10, 20, 20);
-
-        if (p.bullets) {
-            p.bullets.forEach(b => {
-                ctx.fillStyle = (id === playerId) ? "yellow" : "orange";
-                ctx.fillRect(b.x - 5, b.y - 5, 10, 10);
-            });
-        }
+    for(let id in otherPlayers){
+        let p = otherPlayers[id];
+        ctx.fillStyle = "red";
+        ctx.fillRect(p.x-10, p.y-10, 20, 20);
     }
 }
 
-function loop() {
-    updatePlayer();
+function loop(){
+    update();
     draw();
     requestAnimationFrame(loop);
 }
-
 loop();
 </script>
 
