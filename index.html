@@ -1,14 +1,15 @@
 <!DOCTYPE html>
-<html lang="en">
+<html>
 <head>
 <meta charset="UTF-8">
 <title>Slipper Multiplayer</title>
 <style>
-  body { margin:0; overflow:hidden; background:#333; }
-  canvas { display:block; margin:0 auto; background:#222; }
+    body { margin:0; overflow:hidden; background:#222; }
+    canvas { background:#111; display:block; margin:0 auto; }
 </style>
 </head>
 <body>
+
 <canvas id="game"></canvas>
 
 <script>
@@ -17,78 +18,64 @@ const ctx = canvas.getContext("2d");
 canvas.width = 800;
 canvas.height = 600;
 
-const WS_URL = "wss://slips-1.onrender.com";  // your Render server WebSocket
-const ws = new WebSocket(WS_URL);
-
-let player = { x: 400, y: 300, bullets: [] };
-let otherPlayers = {};
+let player = { x: 400, y: 300, color: "cyan" };
 let keys = {};
+let players = {}; // all players from server
 
-// WebSocket events
-ws.onopen = () => console.log("Connected to Render server");
-ws.onmessage = msg => {
+// CONNECT TO YOUR PYTHON SERVER
+const ws = new WebSocket("wss://slips-1.onrender.com");
+
+ws.onopen = () => console.log("Connected to WebSocket");
+
+// Receive updates
+ws.onmessage = (msg) => {
     const data = JSON.parse(msg.data);
-    if(data.type === "state"){
-        otherPlayers[data.playerId] = data.state;
+
+    if (data.type === "players") {
+        players = data.players;
     }
 };
 
 // Controls
 document.addEventListener("keydown", e => keys[e.key] = true);
-document.addEventListener("keyup", e => keys[e.key] = false);
+document.addEventListener("keyup", e => delete keys[e.key]);
 
-canvas.addEventListener("click", e => {
-    const r = canvas.getBoundingClientRect();
-    const mx = e.clientX - r.left;
-    const my = e.clientY - r.top;
-    player.bullets.push({ x: player.x, y: player.y, dx: (mx-player.x)/20, dy: (my-player.y)/20 });
-});
-
-// Game logic
 function update() {
-    if(keys.w) player.y -= 4;
-    if(keys.s) player.y += 4;
-    if(keys.a) player.x -= 4;
-    if(keys.d) player.x += 4;
+    if (keys["ArrowUp"] || keys["w"]) player.y -= 4;
+    if (keys["ArrowDown"] || keys["s"]) player.y += 4;
+    if (keys["ArrowLeft"] || keys["a"]) player.x -= 4;
+    if (keys["ArrowRight"] || keys["d"]) player.x += 4;
 
-    player.bullets.forEach(b => { b.x += b.dx; b.y += b.dy; });
-
-    if(ws.readyState === WebSocket.OPEN){
-        ws.send(JSON.stringify({ type:"update", state: player }));
+    // Send player position
+    if (ws.readyState === WebSocket.OPEN) {
+        ws.send(JSON.stringify({
+            type: "update",
+            x: player.x,
+            y: player.y
+        }));
     }
 }
 
-// Draw
 function draw() {
-    ctx.clearRect(0,0,800,600);
+    ctx.clearRect(0, 0, canvas.width, canvas.height);
 
-    // Draw self
+    // Draw myself
     ctx.fillStyle = "cyan";
-    ctx.fillRect(player.x-10, player.y-10, 20, 20);
+    ctx.fillRect(player.x - 10, player.y - 10, 20, 20);
 
-    // Draw bullets
-    player.bullets.forEach(b => {
-        ctx.fillStyle = "yellow";
-        ctx.fillRect(b.x-3, b.y-3, 6, 6);
-    });
+    // Draw others
+    for (const id in players) {
+        const p = players[id];
 
-    // Draw other players
-    for(let id in otherPlayers){
-        const p = otherPlayers[id];
+        // Skip drawing myself (approx position match)
+        if (Math.abs(p.x - player.x) < 1 && Math.abs(p.y - player.y) < 1) continue;
+
         ctx.fillStyle = "red";
-        ctx.fillRect(p.x-10, p.y-10, 20, 20);
-
-        if(p.bullets){
-            p.bullets.forEach(b => {
-                ctx.fillStyle = "orange";
-                ctx.fillRect(b.x-3, b.y-3, 6, 6);
-            });
-        }
+        ctx.fillRect(p.x - 10, p.y - 10, 20, 20);
     }
 }
 
-// Main loop
-function loop(){
+function loop() {
     update();
     draw();
     requestAnimationFrame(loop);
