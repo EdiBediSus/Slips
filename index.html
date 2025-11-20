@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<html>
+<html lang="en">
 <head>
 <meta charset="UTF-8">
 <title>Slipper Multiplayer</title>
@@ -17,24 +17,24 @@ const ctx = canvas.getContext("2d");
 canvas.width = 800;
 canvas.height = 600;
 
-const WS_URL = "wss://ed-1-yazy.onrender.com";  
+const WS_URL = "wss://slips-abwi.onrender.com";
 const ws = new WebSocket(WS_URL);
 
-let player = { x: 400, y: 300, color: "cyan" };
-let bullets = [];
+let player = { x: 400, y: 300, bullets: [] };
 let otherPlayers = {};
 let keys = {};
 
-ws.onopen = () => console.log("Connected to server");
+// WebSocket events
+ws.onopen = () => console.log("Connected to Render server");
 
 ws.onmessage = msg => {
     const data = JSON.parse(msg.data);
-
     if(data.type === "state"){
         otherPlayers[data.playerId] = data.state;
     }
 };
 
+// Controls
 document.addEventListener("keydown", e => keys[e.key] = true);
 document.addEventListener("keyup", e => keys[e.key] = false);
 
@@ -42,43 +42,53 @@ canvas.addEventListener("click", e => {
     const r = canvas.getBoundingClientRect();
     const mx = e.clientX - r.left;
     const my = e.clientY - r.top;
-    bullets.push({ x: player.x, y: player.y, dx:(mx-player.x)/20, dy:(my-player.y)/20 });
+    player.bullets.push({ x: player.x, y: player.y, dx: (mx-player.x)/20, dy: (my-player.y)/20 });
 });
 
-function update(){
+// Game logic
+function update() {
     if(keys.w) player.y -= 4;
     if(keys.s) player.y += 4;
     if(keys.a) player.x -= 4;
     if(keys.d) player.x += 4;
 
-    bullets.forEach(b => { b.x += b.dx; b.y += b.dy; });
+    player.bullets.forEach(b => { b.x += b.dx; b.y += b.dy; });
 
     if(ws.readyState === WebSocket.OPEN){
-        ws.send(JSON.stringify({
-            type:"update",
-            state:{ x:player.x, y:player.y, bullets }
-        }));
+        ws.send(JSON.stringify({ type:"update", state: player }));
     }
 }
 
-function draw(){
+// Draw
+function draw() {
     ctx.clearRect(0,0,800,600);
 
-    ctx.fillStyle = player.color;
+    // Draw self
+    ctx.fillStyle = "cyan";
     ctx.fillRect(player.x-10, player.y-10, 20, 20);
 
-    bullets.forEach(b => {
+    // Draw bullets
+    player.bullets.forEach(b => {
         ctx.fillStyle = "yellow";
         ctx.fillRect(b.x-3, b.y-3, 6, 6);
     });
 
+    // Draw other players
     for(let id in otherPlayers){
-        let p = otherPlayers[id];
+        const p = otherPlayers[id];
         ctx.fillStyle = "red";
         ctx.fillRect(p.x-10, p.y-10, 20, 20);
+
+        if(p.bullets){
+            p.bullets.forEach(b => {
+                ctx.fillStyle = "orange";
+                ctx.fillRect(b.x-3, b.y-3, 6, 6);
+            });
+        }
     }
 }
 
+// Main loop
 function loop(){
     update();
     draw();
