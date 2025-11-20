@@ -1,49 +1,36 @@
 import asyncio
 import websockets
 import json
-import uuid
 
 players = {}
-bullets = []
 
 async def handler(ws, path):
-    player_id = str(uuid.uuid4())
+    player_id = id(ws)
     players[player_id] = {"x": 400, "y": 300, "bullets": []}
-
-    print(f"[+] Player {player_id} connected")
+    print(f"Player {player_id} connected")
 
     try:
-        # send player id
-        await ws.send(json.dumps({"type": "id", "id": player_id}))
-
-        async for msg in ws:
-            data = json.loads(msg)
+        async for message in ws:
+            data = json.loads(message)
 
             if data["type"] == "update":
-                players[player_id]["x"] = data["state"]["x"]
-                players[player_id]["y"] = data["state"]["y"]
-                players[player_id]["bullets"] = data["state"]["bullets"]
+                players[player_id] = data["state"]
 
-            # send world state to all players
-            state = {
-                "type": "state",
-                "players": players
-            }
-            msg = json.dumps(state)
-
-            # broadcast
-            await asyncio.gather(*(p.send(msg) for p in list(ws.server.websockets) if p.open))
-
+            # broadcast state to this player
+            for pid, state in players.items():
+                if pid != player_id:
+                    await ws.send(json.dumps({
+                        "type": "state",
+                        "playerId": pid,
+                        "state": state
+                    }))
     except:
         pass
-
     finally:
-        print(f"[-] Player {player_id} disconnected")
         del players[player_id]
+        print(f"Player {player_id} disconnected")
 
-async def main():
-    async with websockets.serve(handler, "0.0.0.0", 10000):
-        print("Server running on port 10000")
-        await asyncio.Future()
+start_server = websockets.serve(handler, "0.0.0.0", 10000)
 
-asyncio.run(main())
+asyncio.get_event_loop().run_until_complete(start_server)
+asyncio.get_event_loop().run_forever()
