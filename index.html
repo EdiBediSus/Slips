@@ -2,10 +2,10 @@
 <html>
 <head>
 <meta charset="UTF-8">
-<title>Slipper Multiplayer</title>
+<title>Slipper Multiplayer Online</title>
 <style>
-    body { margin:0; overflow:hidden; background:#222; }
-    canvas { background:#111; display:block; margin:0 auto; }
+body { margin:0; overflow:hidden; background:#222; }
+canvas { background:#111; display:block; margin:0 auto; }
 </style>
 </head>
 <body>
@@ -19,33 +19,32 @@ canvas.width = 800;
 canvas.height = 600;
 
 let player = { id: null, x: 400, y: 300, bullets: [] };
-let players = {}; // other players
+let players = {};
 let keys = {};
 
+// Change this to your Render app URL
 const ws = new WebSocket("wss://slips-2.onrender.com");
 
-ws.onopen = () => console.log("Connected");
+ws.onopen = () => console.log("Connected to server");
 
 ws.onmessage = msg => {
     const data = JSON.parse(msg.data);
 
-    // Server gives us our ID
     if (data.type === "id") {
         player.id = data.id;
         return;
     }
 
-    // Update all players
     if (data.type === "players") {
         players = data.players;
     }
 };
 
-// CONTROLS
+// Controls
 document.addEventListener("keydown", e => keys[e.key] = true);
 document.addEventListener("keyup", e => delete keys[e.key]);
 
-// SHOOT
+// Shoot
 canvas.addEventListener("click", e => {
     const rect = canvas.getBoundingClientRect();
     const mx = e.clientX - rect.left;
@@ -57,15 +56,13 @@ canvas.addEventListener("click", e => {
     player.bullets.push({ x: player.x, y: player.y, dx, dy });
 });
 
-// UPDATE LOOP
+// Update
 function update() {
-    // Movement
     if (keys["ArrowUp"] || keys["w"]) player.y -= 4;
     if (keys["ArrowDown"] || keys["s"]) player.y += 4;
     if (keys["ArrowLeft"] || keys["a"]) player.x -= 4;
     if (keys["ArrowRight"] || keys["d"]) player.x += 4;
 
-    // Bullets
     player.bullets.forEach(b => {
         b.x += b.dx;
         b.y += b.dy;
@@ -75,7 +72,6 @@ function update() {
         b.x > 0 && b.x < canvas.width && b.y > 0 && b.y < canvas.height
     );
 
-    // Send to server
     if (ws.readyState === WebSocket.OPEN && player.id) {
         ws.send(JSON.stringify({
             type: "update",
@@ -87,24 +83,23 @@ function update() {
     }
 }
 
-// DRAW
+// Draw
 function draw() {
-    ctx.clearRect(0, 0, canvas.width, canvas.height);
+    ctx.clearRect(0,0,canvas.width,canvas.height);
 
-    // Draw myself
+    // Me
     ctx.fillStyle = "cyan";
     ctx.fillRect(player.x - 10, player.y - 10, 20, 20);
-
     player.bullets.forEach(b => {
         ctx.fillStyle = "yellow";
         ctx.fillRect(b.x - 4, b.y - 4, 8, 8);
     });
 
-    // Draw others
+    // Others
     for (const id in players) {
-        if (String(id) === String(player.id)) continue; // ignore yourself
-
+        if (String(id) === String(player.id)) continue;
         const p = players[id];
+
         ctx.fillStyle = "red";
         ctx.fillRect(p.x - 10, p.y - 10, 20, 20);
 
