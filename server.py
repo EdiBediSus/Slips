@@ -1,73 +1,45 @@
-import asyncio
-import json
 import os
-from websockets.server import serve
+import asyncio
+import websockets
+import json
+import uuid
 
-players = {}       # player_id -> {x, y}
-connections = set()  # all connected websockets
+PORT = int(os.environ.get("PORT", 6789))
 
+players = {}
 
-async def broadcast(message):
-    """Send message to all connected players."""
-    dead = []
-    for ws in connections:
-        try:
-            await ws.send(message)
-        except:
-            dead.append(ws)
+async def handler(ws, path):
+    player_id = str(uuid.uuid4())
+    players[player_id] = {"x": 400, "y": 300, "bullets": []}
 
-    # remove dead connections
-    for ws in dead:
-        connections.remove(ws)
-
-
-async def handler(ws):
-    connections.add(ws)
-
-    player_id = id(ws)
-    players[player_id] = {"x": 100, "y": 100}
-
-    print("Player joined:", player_id)
+    # Send ID to client
+    await ws.send(json.dumps({"type": "id", "id": player_id}))
 
     try:
-        async for msg in ws:
-            data = json.loads(msg)
+        async for message in ws:
+            data = json.loads(message)
+            if data.get("type") == "update":
+                players[player_id] = {
+                    "x": data["x"],
+                    "y": data["y"],
+                    "bullets": data.get("bullets", [])
+                }
 
-            if data["type"] == "update":
-                # update this player
-                players[player_id]["x"] = data["x"]
-                players[player_id]["y"] = data["y"]
+            # Broadcast all players to all connected clients
+            if websockets.broadcast:
+                broadcast_data = json.dumps({"type": "players", "players": players})
+                await broadcast(ws, broadcast_data)
+    finally:
+        del players[player_id]
 
-                # send ALL players to ALL clients
-                packet = json.dumps({
-                    "type": "players",
-                    "players": players
-                })
-
-                await broadcast(packet)
-
-    except Exception as e:
-        print("Error:", e)
-
-    # disconnect cleanup
-    del players[player_id]
-    connections.remove(ws)
-    print("Player left:", player_id)
-
-    # notify others
-    await broadcast(json.dumps({
-        "type": "players",
-        "players": players
-    }))
-
+async def broadcast(sender_ws, message):
+    for ws in sender_ws.server.websockets:
+        if ws.open:
+            await ws.send(message)
 
 async def main():
-    port = int(os.environ.get("PORT", 10000))
-    print("WS Server running on port", port)
+    async with websockets.serve(handler, "0.0.0.0", PORT):
+        print(f"Server started on port {PORT}")
+        await asyncio.Future()  # run forever
 
-    async with serve(handler, "0.0.0.0", port):
-        await asyncio.Future()
-
-
-if __name__ == "__main__":
-    asyncio.run(main())
+asyncio.run(main())
