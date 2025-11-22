@@ -1,41 +1,69 @@
 const WebSocket = require("ws");
 
-const port = process.env.PORT || 6510;
-const wss = new WebSocket.Server({ port });
-const clients = new Map();
+const PORT = process.env.PORT || 10000;
+const wss = new WebSocket.Server({ port: PORT });
 
-console.log("Server running on ws://0.0.0.0:" + port);
+console.log("WebSocket server running on port", PORT);
 
-wss.on("connection", (ws) => {
-  const id = Date.now() + "-" + Math.floor(Math.random() * 1000);
-  const player = { x: 400, y: 300, bullets: [], health: 3, alive: true, score: 0 };
-  clients.set(ws, { id, player });
+let clients = new Map(); // id → { ws, hp }
 
-  // Send the assigned ID to the client
-  ws.send(JSON.stringify({ type: "init", id }));
+function broadcast(obj, except = null) {
+  const msg = JSON.stringify(obj);
+  for (const [id, client] of clients) {
+    if (client.ws.readyState === WebSocket.OPEN && id !== except) {
+      client.ws.send(msg);
+    }
+  }
+}
 
-  ws.on("message", (msg) => {
-    try {
-      const data = JSON.parse(msg);
-      if (data.type === "update") {
-        clients.get(ws).player = data.state;
+wss.on("connection", ws => {
+  const myId = Math.floor(Math.random() * 1_000_000);
+
+  clients.set(myId, { ws, hp: 100 });
+  console.log("Client connected:", myId);
+
+  ws.send(JSON.stringify({ type: "init", id: myId }));
+
+  ws.on("message", msg => {
+    const data = JSON.parse(msg);
+
+    // Position + bullets
+    if (data.type === "update") {
+      broadcast({ type: "state", playerId: myId, state: data.state }, myId);
+    }
+
+    // Hit / damage
+    if (data.type === "hit") {
+      const target = Number(data.target);
+      const damage = Number(data.damage);
+
+      if (clients.has(target)) {
+        const c = clients.get(target);
+        c.hp -= damage;
+
+        // Send new HP to victim
+        c.ws.send(
+          JSON.stringify({ type: "hit", playerId: target, hp: c.hp })
+        );
+
+        if (c.hp <= 0) {
+          // Respawn
+          c.hp = 100;
+          c.ws.send(
+            JSON.stringify({
+              type: "dead",
+              playerId: target,
+              hp: c.hp
+            })
+          );
+        }
       }
-    } catch (e) {
-      console.error(e);
     }
   });
 
   ws.on("close", () => {
-    clients.delete(ws);
+    clients.delete(myId);
+    broadcast({ type: "leave", playerId: myId });
+    console.log("Client disconnected:", myId);
   });
 });
-
-// Broadcast all players 20 times per second
-setInterval(() => {
-  const state = { type: "state", players: {} };
-  clients.forEach((p, ws) => {
-    state.players[p.id] = p.player;
-  });
-  const msg = JSON.stringify(state);
-  clients.forEach((_, ws) => ws.send(msg));
-}, 50); // 50ms = 20 FPS
