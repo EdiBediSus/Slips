@@ -24,7 +24,8 @@ let keys = {};
 let speed = 4;
 
 // CONNECT TO WEBSOCKET SERVER
-const ws = new WebSocket("wss://slips-3.onrender.com");
+let ws = new WebSocket("wss://" + window.location.host + "/");
+
 
 ws.onopen = () => console.log("Connected!");
 
@@ -90,3 +91,4 @@ loop();
 </script>
 </body>
 </html>
+
