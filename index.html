@@ -17,87 +17,71 @@ const ctx = canvas.getContext("2d");
 canvas.width = 800;
 canvas.height = 600;
 
-let player = { x: 400, y: 300, color: "cyan" };
-let bullets = [];
-let players = {};
+let playerId = null;
+let players = {};  // all players including me
+
 let keys = {};
+let speed = 4;
 
-const speed = 4;
-
-// ===== CONNECT TO WEBSOCKET SERVER =====
+// CONNECT TO WEBSOCKET SERVER
 const ws = new WebSocket("wss://slips-3.onrender.com");
 
 ws.onopen = () => console.log("Connected!");
 
 ws.onmessage = msg => {
-    players = JSON.parse(msg.data);
+    const data = JSON.parse(msg.data);
+
+    players = data;
+
+    if (!playerId) {
+        // first key in players becomes our ID
+        playerId = Object.keys(players)[0];
+    }
 };
 
-// ===== INPUT =====
+// CONTROLS
 document.addEventListener("keydown", e => keys[e.key] = true);
 document.addEventListener("keyup", e => keys[e.key] = false);
 
-canvas.addEventListener("click", e => {
-    const rect = canvas.getBoundingClientRect();
-    const mx = e.clientX - rect.left;
-    const my = e.clientY - rect.top;
+function update() {
+    if (!playerId || !players[playerId]) return;
 
-    bullets.push({
-        x: player.x,
-        y: player.y,
-        dx: (mx - player.x) / 20,
-        dy: (my - player.y) / 20
-    });
-});
+    let me = players[playerId];
 
-// ===== GAME UPDATE =====
-function update(){
-    if(keys["w"] || keys["ArrowUp"]) player.y -= speed;
-    if(keys["s"] || keys["ArrowDown"]) player.y += speed;
-    if(keys["a"] || keys["ArrowLeft"]) player.x -= speed;
-    if(keys["d"] || keys["ArrowRight"]) player.x += speed;
+    if (keys["ArrowUp"] || keys["w"]) me.y -= speed;
+    if (keys["ArrowDown"] || keys["s"]) me.y += speed;
+    if (keys["ArrowLeft"] || keys["a"]) me.x -= speed;
+    if (keys["ArrowRight"] || keys["d"]) me.x += speed;
 
-    bullets.forEach(b => { b.x += b.dx; b.y += b.dy; });
-
-    // Send your state
-    if(ws.readyState === 1){
+    // send position to server
+    if (ws.readyState === WebSocket.OPEN) {
         ws.send(JSON.stringify({
-            x: player.x,
-            y: player.y,
-            bullets: bullets
+            x: me.x,
+            y: me.y,
+            bullets: me.bullets || []
         }));
     }
 }
 
-// ===== RENDER =====
-function draw(){
+function draw() {
     ctx.clearRect(0,0,canvas.width,canvas.height);
 
-    // Self
-    ctx.fillStyle = "cyan";
-    ctx.fillRect(player.x - 10, player.y - 10, 20, 20);
+    for (let id in players) {
+        let p = players[id];
 
-    bullets.forEach(b => {
-        ctx.fillStyle = "yellow";
-        ctx.fillRect(b.x - 5, b.y - 5, 10, 10);
-    });
-
-    // Other players
-    for(let id in players){
-        const p = players[id];
-        ctx.fillStyle = "red";
+        ctx.fillStyle = id === playerId ? "cyan" : "red";
         ctx.fillRect(p.x - 10, p.y - 10, 20, 20);
 
-        if(p.bullets){
+        if (p.bullets) {
             p.bullets.forEach(b => {
-                ctx.fillStyle = "orange";
-                ctx.fillRect(b.x - 5, b.y - 5, 10, 10);
+                ctx.fillStyle = "yellow";
+                ctx.fillRect(b.x - 3, b.y - 3, 6, 6);
             });
         }
     }
 }
 
-function loop(){
+function loop() {
     update();
     draw();
     requestAnimationFrame(loop);
@@ -106,4 +90,3 @@ loop();
 </script>
 </body>
 </html>
-
