@@ -6,33 +6,55 @@
 <style>
 body { margin:0; overflow:hidden; background:#111; font-family:Arial,Helvetica,sans-serif; }
 canvas { display:block; margin:0 auto; background:#111; }
-#ui { position: absolute; left: 12px; top: 8px; color: #ddd; }
+
+#ui { position: absolute; left: 10px; top: 10px; color: #ddd; }
 #username { padding:6px; border-radius:6px; border:0; }
+
+#chat {
+    position: absolute; left: 10px; top: 50px; width: 220px; height: 500px;
+    background: rgba(0,0,0,0.6); color: #fff; font-family: monospace;
+    overflow-y: auto; padding: 6px; border-radius: 6px;
+}
+#chatInput {
+    position: absolute; left: 10px; bottom: 10px; width: 220px; padding: 6px;
+    border-radius: 6px; border: none;
+}
+#cooldownText {
+    color: #fff; margin-left: 8px;
+}
 </style>
 </head>
 <body>
+
 <div id="ui">
   <input id="username" placeholder="Enter username" />
   <span id="cooldownText"></span>
 </div>
+<div id="chat"></div>
+<input id="chatInput" placeholder="Type a message" />
+
 <canvas id="game"></canvas>
+
 <script>
 const canvas = document.getElementById("game");
 const ctx = canvas.getContext("2d");
 canvas.width = 900; canvas.height = 600;
 
-const WS_URL = "wss://slips-4.onrender.com"; // <-- Render URL
+const WS_URL = "wss://slips-4.onrender.com"; // Your Render WebSocket
 const socket = new WebSocket(WS_URL);
 
 const PLAYER_SIZE = 22, BULLET_SIZE = 8, PLAYER_MAX_HP = 100;
 const BULLET_SPEED = 10, SHOT_COOLDOWN_MS = 300, FRICTION = 0.86, SPEED = 3.2;
+const BULLET_DAMAGE = 20, KNOCKBACK = 5;
 
 let player = { x:450, y:300, vx:0, vy:0, color:"#39f", id:null, hp:PLAYER_MAX_HP, username:"" };
-let bullets = [], otherPlayers = {}, lastShot=0, keys={}, particles=[];
+let bullets = [], otherPlayers = {}, lastShot=0, keys=[];
 
-// --- UI ---
+const chatDiv = document.getElementById("chat");
+const chatInput = document.getElementById("chatInput");
 const usernameInput = document.getElementById("username");
 const cooldownText = document.getElementById("cooldownText");
+
 usernameInput.value = "Player"+Math.floor(Math.random()*9000);
 usernameInput.dispatchEvent(new Event('change'));
 usernameInput.addEventListener("change", ()=>{
@@ -47,62 +69,113 @@ socket.onclose = ()=>console.warn("⚠ WebSocket closed");
 
 socket.onmessage = ev=>{
   const data = JSON.parse(ev.data);
-  if(data.type==="init"){ player.id = data.id; console.log("Assigned player ID:", player.id); return; }
+
+  if(data.type==="init"){ player.id = data.id; return; }
   if(data.type==="state" && data.playerId!==player.id) otherPlayers[data.playerId]=data.state;
   if(data.type==="leave") delete otherPlayers[data.playerId];
-  if(data.type==="hit" && data.playerId===player.id){ player.hp=data.hp; if(data.knock){player.vx+=data.knock.x; player.vy+=data.knock.y;} }
-  if(data.type==="dead" && data.playerId===player.id){ player.hp=data.hp; player.x=canvas.width/2; player.y=canvas.height/2; player.vx=player.vy=0; }
+
+  if(data.type==="chat") {
+    const line = document.createElement("div");
+    line.textContent = `${data.username}: ${data.message}`;
+    chatDiv.appendChild(line);
+    chatDiv.scrollTop = chatDiv.scrollHeight;
+    if(chatDiv.childNodes.length>50) chatDiv.removeChild(chatDiv.firstChild);
+  }
 };
 
+// --- Chat input ---
+chatInput.addEventListener("keydown", e=>{
+  if(e.key==="Enter" && chatInput.value.trim()!=="" && player.id){
+    const msg = chatInput.value.trim();
+    socket.send(JSON.stringify({type:"chat", message:msg}));
+    chatInput.value = "";
+  }
+});
+
 // --- Controls ---
-document.addEventListener("keydown", e=>keys[e.key]=true);
-document.addEventListener("keyup", e=>keys[e.key]=false);
+document.addEventListener("keydown", e => keys[e.key]=true);
+document.addEventListener("keyup", e => keys[e.key]=false);
 
 canvas.addEventListener("click", e=>{
   const now=Date.now();
   if(now-lastShot<SHOT_COOLDOWN_MS) return;
   lastShot=now;
+
   const rect = canvas.getBoundingClientRect();
-  const mx=e.clientX-rect.left, my=e.clientY-rect.top;
-  const angle=Math.atan2(my-player.y, mx-player.x);
-  const dx=Math.cos(angle)*BULLET_SPEED, dy=Math.sin(angle)*BULLET_SPEED;
-  const id=Date.now().toString(36)+"-"+Math.floor(Math.random()*99999);
-  bullets.push({id,x:player.x,y:player.y,dx,dy,owner:player.id,t:Date.now()});
-  player.vx-=dx*0.02; player.vy-=dy*0.02;
+  const mx = e.clientX - rect.left;
+  const my = e.clientY - rect.top;
+  const angle = Math.atan2(my-player.y, mx-player.x);
+  const dx = Math.cos(angle)*BULLET_SPEED;
+  const dy = Math.sin(angle)*BULLET_SPEED;
+  bullets.push({x:player.x,y:player.y,dx,dy,t:Date.now(),owner:player.id});
+  player.vx -= dx*0.02;
+  player.vy -= dy*0.02;
 });
 
-// --- Game loop ---
+// --- Game Loop ---
 function update(){
-  let moveX=0,moveY=0;
+  let moveX=0, moveY=0;
   if(keys.w||keys.ArrowUp) moveY=-1;
   if(keys.s||keys.ArrowDown) moveY=1;
   if(keys.a||keys.ArrowLeft) moveX=-1;
   if(keys.d||keys.ArrowRight) moveX=1;
-  if(moveX||moveY){ const mag=Math.hypot(moveX,moveY)||1; player.vx+=(moveX/mag)*SPEED*0.3; player.vy+=(moveY/mag)*SPEED*0.3; }
-  player.x+=player.vx; player.y+=player.vy; player.vx*=FRICTION; player.vy*=FRICTION;
-  player.x=Math.max(12,Math.min(canvas.width-12,player.x));
-  player.y=Math.max(12,Math.min(canvas.height-12,player.y));
-  bullets.forEach(b=>{b.x+=b.dx;b.y+=b.dy;});
-  bullets=bullets.filter(b=>b.x>-20 && b.x<canvas.width+20 && b.y>-20 && b.y<canvas.height+20 && Date.now()-b.t<8000);
-  if(socket.readyState===WebSocket.OPEN){
-    socket.send(JSON.stringify({type:"update", state:{x:player.x,y:player.y,vx:player.vx,vy:player.vy,hp:player.hp,username:player.username,bullets:bullets.slice(0,8)}}));
+
+  if(moveX||moveY){
+    const mag = Math.hypot(moveX, moveY)||1;
+    player.vx += (moveX/mag)*SPEED*0.3;
+    player.vy += (moveY/mag)*SPEED*0.3;
   }
-  cooldownText.textContent = Math.max(0,SHOT_COOLDOWN_MS-(Date.now()-lastShot))/1000>0 ? ` | Cooldown: ${(Math.max(0,SHOT_COOLDOWN_MS-(Date.now()-lastShot))/1000).toFixed(2)}s` : " | Ready";
+
+  player.x += player.vx; player.y += player.vy;
+  player.vx *= FRICTION; player.vy *= FRICTION;
+  player.x = Math.max(12, Math.min(canvas.width-12, player.x));
+  player.y = Math.max(12, Math.min(canvas.height-12, player.y));
+
+  bullets.forEach(b=>{ b.x+=b.dx; b.y+=b.dy; });
+  bullets = bullets.filter(b => b.x>-20 && b.x<canvas.width+20 && b.y>-20 && b.y<canvas.height+20 && Date.now()-b.t<8000);
+
+  // Send state to server
+  if(socket.readyState===WebSocket.OPEN){
+    socket.send(JSON.stringify({
+      type:"update",
+      state:{
+        x:player.x, y:player.y,
+        vx:player.vx, vy:player.vy,
+        hp:player.hp, username:player.username,
+        bullets: bullets.slice(0,8)
+      }
+    }));
+  }
+
+  cooldownText.textContent = Math.max(0,SHOT_COOLDOWN_MS-(Date.now()-lastShot))/1000>0 ? 
+    ` | Cooldown: ${(Math.max(0,SHOT_COOLDOWN_MS-(Date.now()-lastShot))/1000).toFixed(2)}s` : " | Ready";
 }
+
 function draw(){
   ctx.clearRect(0,0,canvas.width,canvas.height);
   ctx.fillStyle="#0b0b0b"; ctx.fillRect(0,0,canvas.width,canvas.height);
-  // draw other players
+
+  // Other players
   for(const id in otherPlayers){
-    const p=otherPlayers[id]; ctx.fillStyle=p.color||"#f44"; ctx.fillRect(p.x-10,p.y-10,20,20);
-    ctx.fillStyle="#fff"; ctx.font="12px Arial"; ctx.textAlign="center"; ctx.fillText(p.username||("P"+id),p.x,p.y-14);
+    const p=otherPlayers[id];
+    ctx.fillStyle=p.color||"#f44";
+    ctx.fillRect(p.x-10,p.y-10,20,20);
+    ctx.fillStyle="#fff"; ctx.font="12px Arial"; ctx.textAlign="center";
+    ctx.fillText(p.username||("P"+id),p.x,p.y-14);
   }
-  // self
-  ctx.fillStyle=player.color; ctx.fillRect(player.x-10,player.y-10,20,20);
-  ctx.fillStyle="#fff"; ctx.fillText(player.username||"You",player.x,player.y-14);
-  // bullets
-  bullets.forEach(b=>{ ctx.fillStyle="#ffea66"; ctx.fillRect(b.x-4,b.y-4,8,8); });
+
+  // Self
+  ctx.fillStyle=player.color;
+  ctx.fillRect(player.x-10,player.y-10,20,20);
+  ctx.fillStyle="#fff"; ctx.fillText(player.username||"You", player.x, player.y-14);
+
+  // Bullets
+  bullets.forEach(b=>{
+    ctx.fillStyle="#ffea66";
+    ctx.fillRect(b.x-4,b.y-4,8,8);
+  });
 }
+
 function loop(){ update(); draw(); requestAnimationFrame(loop); }
 loop();
 </script>
