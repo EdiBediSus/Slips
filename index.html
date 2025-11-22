@@ -10,7 +10,7 @@ const ctx = c.getContext("2d");
 let x = 400, y = 300;
 let others = [];
 
-const ws = new WebSocket("ws://slips-2.onrender.com");
+const ws = new WebSocket("https://slips-2.onrender.com");
 // if deployed use: wss://yourapp.onrender.com
 
 ws.onmessage = e => {
@@ -51,3 +51,4 @@ loop();
 
 </body>
 </html>
+
