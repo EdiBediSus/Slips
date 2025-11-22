@@ -1,61 +1,105 @@
 <!DOCTYPE html>
-<html>
+<html lang="en">
 <head>
-    <title>Slipper Game</title>
+<meta charset="UTF-8">
+<title>Slipper Multiplayer</title>
+<style>
+  body { margin:0; overflow:hidden; background:#333; }
+  canvas { display:block; margin:0 auto; background:#222; }
+</style>
 </head>
 <body>
-<canvas id="game" width="600" height="400" style="border:1px solid black"></canvas>
+<canvas id="game"></canvas>
 
 <script>
-// AUTO-CONNECT to same domain
-let ws = new WebSocket("wss://" + window.location.host + "/");
+const canvas = document.getElementById("game");
+const ctx = canvas.getContext("2d");
+canvas.width = 800;
+canvas.height = 600;
 
-let canvas = document.getElementById("game");
-let ctx = canvas.getContext("2d");
+const speed = 4;
+let player = { x: 400, y: 300, color: "cyan", id: null };
+let bullets = [];
+let otherPlayers = {};
 
-let player = { x: 300, y: 200 };
-let others = {};
+let keys = {};
 
-ws.onmessage = (event) => {
-    let data = JSON.parse(event.data);
-    others[data.id] = data;
+// ======= WebSocket =======
+const WS_URL = "wss://slips-4.onrender.com"; // <- Replace with your Render server
+const ws = new WebSocket(WS_URL);
+
+ws.onopen = () => console.log("Connected to server");
+
+ws.onmessage = msg => {
+    const data = JSON.parse(msg.data);
+    if(data.type === "state") {
+        if(data.playerId !== player.id){
+            otherPlayers[data.playerId] = data.state;
+        }
+    }
+    if(data.type === "leave") {
+        delete otherPlayers[data.playerId];
+    }
 };
 
-ws.onopen = () => console.log("Connected!");
-
-function sendPosition() {
-    ws.send(JSON.stringify({
-        id: Math.random().toString(36).substr(2, 9),
-        x: player.x,
-        y: player.y
-    }));
-}
-
-document.addEventListener("keydown", (e) => {
-    if (e.key === "ArrowUp") player.y -= 5;
-    if (e.key === "ArrowDown") player.y += 5;
-    if (e.key === "ArrowLeft") player.x -= 5;
-    if (e.key === "ArrowRight") player.x += 5;
-    sendPosition();
+// ======= Controls =======
+document.addEventListener("keydown", e => keys[e.key] = true);
+document.addEventListener("keyup", e => keys[e.key] = false);
+canvas.addEventListener("click", e => {
+    const rect = canvas.getBoundingClientRect();
+    const mx = e.clientX - rect.left;
+    const my = e.clientY - rect.top;
+    bullets.push({ x: player.x, y: player.y, dx: (mx-player.x)/20, dy: (my-player.y)/20 });
 });
 
-function loop() {
-    ctx.clearRect(0, 0, canvas.width, canvas.height);
+// ======= Game Loop =======
+function update(){
+    if(keys["ArrowUp"] || keys["w"]) player.y -= speed;
+    if(keys["ArrowDown"] || keys["s"]) player.y += speed;
+    if(keys["ArrowLeft"] || keys["a"]) player.x -= speed;
+    if(keys["ArrowRight"] || keys["d"]) player.x += speed;
 
-    // You
-    ctx.fillStyle = "blue";
-    ctx.fillRect(player.x - 10, player.y - 10, 20, 20);
+    bullets.forEach(b => { b.x += b.dx; b.y += b.dy; });
+    bullets = bullets.filter(b => b.x>0 && b.x<canvas.width && b.y>0 && b.y<canvas.height);
 
-    // Other players
-    ctx.fillStyle = "red";
-    for (let id in others) {
-        let p = others[id];
-        ctx.fillRect(p.x - 10, p.y - 10, 20, 20);
+    // Send update to server
+    if(ws.readyState === WebSocket.OPEN){
+        ws.send(JSON.stringify({ type:"update", state:{x:player.x, y:player.y, bullets: bullets} }));
     }
-
-    requestAnimationFrame(loop);
 }
 
+// ======= Draw =======
+function draw(){
+    ctx.clearRect(0,0,canvas.width,canvas.height);
+
+    // Draw self
+    ctx.fillStyle = player.color;
+    ctx.fillRect(player.x-10, player.y-10, 20, 20);
+
+    // Draw bullets
+    bullets.forEach(b => {
+        ctx.fillStyle = "yellow";
+        ctx.fillRect(b.x-5, b.y-5, 10, 10);
+    });
+
+    // Draw other players
+    for(let id in otherPlayers){
+        let p = otherPlayers[id];
+        ctx.fillStyle = "red";
+        ctx.fillRect(p.x-10, p.y-10, 20, 20);
+        if(p.bullets) p.bullets.forEach(b => {
+            ctx.fillStyle = "orange";
+            ctx.fillRect(b.x-5, b.y-5, 10, 10);
+        });
+    }
+}
+
+// ======= Main Loop =======
+function loop(){
+    update();
+    draw();
+    requestAnimationFrame(loop);
+}
 loop();
 </script>
 </body>
