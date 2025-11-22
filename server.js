@@ -58,8 +58,11 @@ wss.on("connection", ws=>{
     }
   });
 
-  // --- Main game tick: check bullet collisions ---
+  // --- Main game tick: check bullet collisions and broadcast ---
   const interval = setInterval(()=>{
+    const me = players.get(myId); // ✅ Fix ReferenceError
+    if(!me) return;
+
     for(const [id,p] of players){
       if(id===myId) continue;
       bullets.forEach(b=>{
@@ -71,15 +74,16 @@ wss.on("connection", ws=>{
           p.vy += dy*0.1;
           broadcast({type:"hit", playerId:id, hp:p.hp, knock:{x:dx*0.1, y:dy*0.1}});
           bullets = bullets.filter(bb=>bb!==b);
-          if(p.hp<=0){
-            p.hp=100;
-            p.x=400; p.y=300; p.vx=0; p.vy=0;
+          if(p.hp <= 0){
+            p.hp = 100;
+            p.x = 400; p.y = 300; p.vx=0; p.vy=0;
             broadcast({type:"dead", playerId:id, hp:p.hp});
           }
         }
       });
     }
-    // broadcast player state to others
+
+    // broadcast own state to others
     broadcast({type:"state", playerId: myId, state:{
       x: me.x, y: me.y, vx: me.vx, vy: me.vy, hp: me.hp, username: me.username, color: me.color
     }});
