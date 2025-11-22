@@ -18,89 +18,152 @@ canvas.width = 800;
 canvas.height = 600;
 
 const speed = 4;
-let player = { x: 400, y: 300, color: "cyan", id: null };
+let player = { x: 400, y: 300, color: "cyan", id: null, hp: 100 };
 let bullets = [];
 let otherPlayers = {};
 
 let keys = {};
 
 // ======= WebSocket =======
-const WS_URL = "wss://slips-4.onrender.com"; // <- Replace with your Render server
+const WS_URL = "wss://ed-1-yazy.onrender.com"; // <-- Render WebSocket
 const ws = new WebSocket(WS_URL);
 
 ws.onopen = () => console.log("Connected to server");
 
 ws.onmessage = msg => {
     const data = JSON.parse(msg.data);
-    if(data.type === "state") {
-        if(data.playerId !== player.id){
+
+    if (data.type === "init") {
+        player.id = data.id;
+        return;
+    }
+
+    if (data.type === "state") {
+        if (data.playerId !== player.id) {
             otherPlayers[data.playerId] = data.state;
         }
     }
-    if(data.type === "leave") {
+
+    if (data.type === "leave") {
         delete otherPlayers[data.playerId];
+    }
+
+    if (data.type === "hit") {
+        if (data.playerId === player.id) {
+            player.hp = data.hp;
+        }
+    }
+
+    if (data.type === "dead") {
+        if (data.playerId === player.id) {
+            alert("You died!");
+            player.x = 400;
+            player.y = 300;
+            player.hp = 100;
+        }
     }
 };
 
 // ======= Controls =======
 document.addEventListener("keydown", e => keys[e.key] = true);
 document.addEventListener("keyup", e => keys[e.key] = false);
+
 canvas.addEventListener("click", e => {
     const rect = canvas.getBoundingClientRect();
     const mx = e.clientX - rect.left;
     const my = e.clientY - rect.top;
-    bullets.push({ x: player.x, y: player.y, dx: (mx-player.x)/20, dy: (my-player.y)/20 });
+    bullets.push({
+        x: player.x,
+        y: player.y,
+        dx: (mx - player.x) / 20,
+        dy: (my - player.y) / 20
+    });
 });
 
-// ======= Game Loop =======
-function update(){
-    if(keys["ArrowUp"] || keys["w"]) player.y -= speed;
-    if(keys["ArrowDown"] || keys["s"]) player.y += speed;
-    if(keys["ArrowLeft"] || keys["a"]) player.x -= speed;
-    if(keys["ArrowRight"] || keys["d"]) player.x += speed;
+// ======= Game Logic =======
+function update() {
+    if (keys["ArrowUp"] || keys["w"]) player.y -= speed;
+    if (keys["ArrowDown"] || keys["s"]) player.y += speed;
+    if (keys["ArrowLeft"] || keys["a"]) player.x -= speed;
+    if (keys["ArrowRight"] || keys["d"]) player.x += speed;
 
+    // Move bullets
     bullets.forEach(b => { b.x += b.dx; b.y += b.dy; });
-    bullets = bullets.filter(b => b.x>0 && b.x<canvas.width && b.y>0 && b.y<canvas.height);
 
-    // Send update to server
-    if(ws.readyState === WebSocket.OPEN){
-        ws.send(JSON.stringify({ type:"update", state:{x:player.x, y:player.y, bullets: bullets} }));
+    // Remove off-screen bullets
+    bullets = bullets.filter(b =>
+        b.x > 0 && b.x < canvas.width && b.y > 0 && b.y < canvas.height
+    );
+
+    // Detect bullet hits
+    for (let id in otherPlayers) {
+        const p = otherPlayers[id];
+
+        bullets.forEach(b => {
+            if (Math.abs(b.x - p.x) < 15 && Math.abs(b.y - p.y) < 15) {
+
+                ws.send(JSON.stringify({
+                    type: "hit",
+                    target: id,
+                    damage: 20
+                }));
+
+                b.x = -999;
+            }
+        });
+    }
+
+    // Send update
+    if (ws.readyState === WebSocket.OPEN) {
+        ws.send(JSON.stringify({
+            type: "update",
+            state: { x: player.x, y: player.y, bullets }
+        }));
     }
 }
 
-// ======= Draw =======
-function draw(){
-    ctx.clearRect(0,0,canvas.width,canvas.height);
+function draw() {
+    ctx.clearRect(0, 0, canvas.width, canvas.height);
 
     // Draw self
-    ctx.fillStyle = player.color;
-    ctx.fillRect(player.x-10, player.y-10, 20, 20);
+    ctx.fillStyle = "cyan";
+    ctx.fillRect(player.x - 10, player.y - 10, 20, 20);
 
-    // Draw bullets
+    // HP
+    ctx.fillStyle = "white";
+    ctx.font = "20px Arial";
+    ctx.fillText("HP: " + player.hp, 20, 30);
+
+    // Bullets
     bullets.forEach(b => {
         ctx.fillStyle = "yellow";
-        ctx.fillRect(b.x-5, b.y-5, 10, 10);
+        ctx.fillRect(b.x - 5, b.y - 5, 10, 10);
     });
 
-    // Draw other players
-    for(let id in otherPlayers){
-        let p = otherPlayers[id];
+    // Other players
+    for (let id in otherPlayers) {
+        const p = otherPlayers[id];
         ctx.fillStyle = "red";
-        ctx.fillRect(p.x-10, p.y-10, 20, 20);
-        if(p.bullets) p.bullets.forEach(b => {
-            ctx.fillStyle = "orange";
-            ctx.fillRect(b.x-5, b.y-5, 10, 10);
-        });
+        ctx.fillRect(p.x - 10, p.y - 10, 20, 20);
+
+        if (p.bullets) {
+            p.bullets.forEach(b => {
+                ctx.fillStyle = "orange";
+                ctx.fillRect(b.x - 5, b.y -5, 10, 10);
+            });
+        }
     }
 }
 
 // ======= Main Loop =======
-function loop(){
+function loop() {
     update();
     draw();
     requestAnimationFrame(loop);
 }
 loop();
 </script>
+
 </body>
 </html>
+
