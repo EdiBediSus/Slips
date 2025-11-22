@@ -1,170 +1,353 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-<meta charset="UTF-8">
-<title>Slipper Multiplayer</title>
+<meta charset="UTF-8" />
+<title>Slipper Multiplayer (Enhanced)</title>
 <style>
-  body { margin:0; overflow:hidden; background:#333; }
-  canvas { display:block; margin:0 auto; background:#222; }
+  body { margin:0; overflow:hidden; background:#111; font-family:Arial,Helvetica,sans-serif; }
+  canvas { display:block; margin:0 auto; background:#111; }
+  #ui { position: absolute; left: 12px; top: 8px; color: #ddd; }
+  #username { padding:6px; border-radius:6px; border:0; }
 </style>
 </head>
 <body>
+<div id="ui">
+  <input id="username" placeholder="Enter username" />
+  <span id="cooldownText"></span>
+</div>
 <canvas id="game"></canvas>
 
 <script>
 const canvas = document.getElementById("game");
 const ctx = canvas.getContext("2d");
-canvas.width = 800;
+canvas.width = 900;
 canvas.height = 600;
 
-const speed = 4;
-let player = { x: 400, y: 300, color: "cyan", id: null, hp: 100 };
-let bullets = [];
-let otherPlayers = {};
+const WS_URL = "wss://slips-4.onrender.com"; // <-- change to your Render URL (wss)
+const socket = new WebSocket(WS_URL);
 
+// --- Tunables ---
+const PLAYER_SIZE = 22;
+const BULLET_SIZE = 8;
+const PLAYER_MAX_HP = 100;
+const BULLET_DAMAGE = 20;
+const BULLET_SPEED = 10;
+const SHOT_COOLDOWN_MS = 300; // rate of fire
+const KNOCKBACK_FORCE = 8;   // base knockback (server scales)
+const FRICTION = 0.86;
+const SPEED = 3.2;
+
+// --- Local state ---
+let player = { x: 450, y: 300, vx: 0, vy: 0, color: "#39f", id: null, hp: PLAYER_MAX_HP, username: "" };
+let bullets = []; // our local (unconfirmed) bullets
+let otherPlayers = {}; // id -> { x,y,vx,vy,hp,username, color }
+let bulletsSeenByServer = new Set(); // for local de-dup (optional)
+let lastShot = 0;
 let keys = {};
+let particles = [];
 
-// ======= WebSocket =======
-const WS_URL = "wss://slips-4.onrender.com"; // <-- Render WebSocket
-const ws = new WebSocket(WS_URL);
+// --- Simple map walls (axis-aligned rectangles) ---
+const walls = [
+  { x: 150, y: 120, w: 600, h: 20 },
+  { x: 150, y: 460, w: 600, h: 20 },
+  { x: 150, y: 140, w: 20, h: 320 },
+  { x: 730, y: 140, w: 20, h: 320 }
+];
 
-ws.onopen = () => console.log("Connected to server");
+// --- UI wiring ---
+const usernameInput = document.getElementById("username");
+const cooldownText = document.getElementById("cooldownText");
+usernameInput.addEventListener("change", () => {
+  player.username = usernameInput.value.trim().slice(0, 16) || "Player";
+  if (socket.readyState === WebSocket.OPEN) {
+    socket.send(JSON.stringify({ type: "setName", name: player.username }));
+  }
+});
+usernameInput.value = "Player" + Math.floor(Math.random()*9000);
+usernameInput.dispatchEvent(new Event('change'));
 
-ws.onmessage = msg => {
-    const data = JSON.parse(msg.data);
-
-    if (data.type === "init") {
-        player.id = data.id;
-        return;
-    }
-
-    if (data.type === "state") {
-        if (data.playerId !== player.id) {
-            otherPlayers[data.playerId] = data.state;
-        }
-    }
-
-    if (data.type === "leave") {
-        delete otherPlayers[data.playerId];
-    }
-
-    if (data.type === "hit") {
-        if (data.playerId === player.id) {
-            player.hp = data.hp;
-        }
-    }
-
-    if (data.type === "dead") {
-        if (data.playerId === player.id) {
-            alert("You died!");
-            player.x = 400;
-            player.y = 300;
-            player.hp = 100;
-        }
-    }
+// --- WebSocket handling ---
+socket.onopen = () => {
+  console.log("WS open");
+  socket.send(JSON.stringify({ type: "hello", name: player.username }));
 };
 
-// ======= Controls =======
+socket.onmessage = ev => {
+  const data = JSON.parse(ev.data);
+
+  if (data.type === "init") {
+    player.id = data.id;
+    player.hp = data.hp ?? PLAYER_MAX_HP;
+    console.log("Assigned id:", player.id);
+    return;
+  }
+
+  if (data.type === "state") {
+    // server broadcasts positions of others
+    if (data.playerId !== player.id) otherPlayers[data.playerId] = data.state;
+  }
+
+  if (data.type === "leave") {
+    delete otherPlayers[data.playerId];
+  }
+
+  if (data.type === "hit") {
+    // authoritative HP update for the target
+    if (data.playerId === player.id) {
+      player.hp = data.hp;
+      if (data.knock) {
+        // server told us knockback vector
+        player.vx += data.knock.x;
+        player.vy += data.knock.y;
+      }
+      spawnHitParticles(player.x, player.y);
+    }
+  }
+
+  if (data.type === "playerHitOther") {
+    // optional: when server informs of a hit on another (for nicer local feedback)
+    if (otherPlayers[data.playerId]) {
+      otherPlayers[data.playerId].hp = data.hp;
+      // we can spawn particles at their pos if present
+    }
+  }
+
+  if (data.type === "dead") {
+    if (data.playerId === player.id) {
+      // respawn: server already reset HP; teleport to center
+      player.x = canvas.width/2;
+      player.y = canvas.height/2;
+      player.vx = player.vy = 0;
+      player.hp = data.hp;
+      spawnRespawnParticles(player.x, player.y);
+    }
+  }
+};
+
+// --- Controls ---
 document.addEventListener("keydown", e => keys[e.key] = true);
 document.addEventListener("keyup", e => keys[e.key] = false);
 
 canvas.addEventListener("click", e => {
-    const rect = canvas.getBoundingClientRect();
-    const mx = e.clientX - rect.left;
-    const my = e.clientY - rect.top;
-    bullets.push({
-        x: player.x,
-        y: player.y,
-        dx: (mx - player.x) / 20,
-        dy: (my - player.y) / 20
-    });
+  const now = Date.now();
+  const rect = canvas.getBoundingClientRect();
+  const mx = e.clientX - rect.left;
+  const my = e.clientY - rect.top;
+  if (now - lastShot < SHOT_COOLDOWN_MS) return; // cooldown
+  lastShot = now;
+
+  const angle = Math.atan2(my - player.y, mx - player.x);
+  const dx = Math.cos(angle) * BULLET_SPEED;
+  const dy = Math.sin(angle) * BULLET_SPEED;
+  const id = Date.now().toString(36) + "-" + Math.floor(Math.random()*99999);
+  const b = { id, x: player.x, y: player.y, dx, dy, owner: player.id, t: Date.now() };
+  bullets.push(b);
+
+  // small recoil
+  player.vx -= dx * 0.02;
+  player.vy -= dy * 0.02;
+
+  // send immediately (server will process hits)
+  if (socket.readyState === WebSocket.OPEN) {
+    socket.send(JSON.stringify({ type: "update", state: { x: player.x, y: player.y, vx: player.vx, vy: player.vy, bullets: [b] } }));
+  }
 });
 
-// ======= Game Logic =======
-function update() {
-    if (keys["ArrowUp"] || keys["w"]) player.y -= speed;
-    if (keys["ArrowDown"] || keys["s"]) player.y += speed;
-    if (keys["ArrowLeft"] || keys["a"]) player.x -= speed;
-    if (keys["ArrowRight"] || keys["d"]) player.x += speed;
-
-    // Move bullets
-    bullets.forEach(b => { b.x += b.dx; b.y += b.dy; });
-
-    // Remove off-screen bullets
-    bullets = bullets.filter(b =>
-        b.x > 0 && b.x < canvas.width && b.y > 0 && b.y < canvas.height
-    );
-
-    // Detect bullet hits
-    for (let id in otherPlayers) {
-        const p = otherPlayers[id];
-
-        bullets.forEach(b => {
-            if (Math.abs(b.x - p.x) < 15 && Math.abs(b.y - p.y) < 15) {
-
-                ws.send(JSON.stringify({
-                    type: "hit",
-                    target: id,
-                    damage: 20
-                }));
-
-                b.x = -999;
-            }
-        });
-    }
-
-    // Send update
-    if (ws.readyState === WebSocket.OPEN) {
-        ws.send(JSON.stringify({
-            type: "update",
-            state: { x: player.x, y: player.y, bullets }
-        }));
-    }
-}
-
-function draw() {
-    ctx.clearRect(0, 0, canvas.width, canvas.height);
-
-    // Draw self
-    ctx.fillStyle = "cyan";
-    ctx.fillRect(player.x - 10, player.y - 10, 20, 20);
-
-    // HP
-    ctx.fillStyle = "white";
-    ctx.font = "20px Arial";
-    ctx.fillText("HP: " + player.hp, 20, 30);
-
-    // Bullets
-    bullets.forEach(b => {
-        ctx.fillStyle = "yellow";
-        ctx.fillRect(b.x - 5, b.y - 5, 10, 10);
+// --- Simple particle effects ---
+function spawnHitParticles(x,y){
+  for(let i=0;i<12;i++){
+    particles.push({
+      x, y,
+      vx: (Math.random()-0.5)*6,
+      vy: (Math.random()-0.5)*6,
+      life: 30 + Math.random()*20
     });
+  }
+}
+function spawnRespawnParticles(x,y){
+  for(let i=0;i<30;i++){
+    particles.push({
+      x, y,
+      vx: (Math.random()-0.5)*8,
+      vy: (Math.random()-0.5)*8,
+      life: 40 + Math.random()*30
+    });
+  }
+}
 
-    // Other players
-    for (let id in otherPlayers) {
-        const p = otherPlayers[id];
-        ctx.fillStyle = "red";
-        ctx.fillRect(p.x - 10, p.y - 10, 20, 20);
+// --- Collision helpers ---
+function rectCollide(rx, ry, rw, rh, x, y, size) {
+  return x+size/2 > rx && x-size/2 < rx+rw && y+size/2 > ry && y-size/2 < ry+rh;
+}
 
-        if (p.bullets) {
-            p.bullets.forEach(b => {
-                ctx.fillStyle = "orange";
-                ctx.fillRect(b.x - 5, b.y -5, 10, 10);
-            });
-        }
+// --- Game Loop ---
+function update(){
+  // movement input
+  let moveX = 0, moveY = 0;
+  if (keys["w"]||keys["ArrowUp"]) moveY = -1;
+  if (keys["s"]||keys["ArrowDown"]) moveY = 1;
+  if (keys["a"]||keys["ArrowLeft"]) moveX = -1;
+  if (keys["d"]||keys["ArrowRight"]) moveX = 1;
+
+  // apply movement acceleration
+  if (moveX || moveY) {
+    const mag = Math.hypot(moveX, moveY) || 1;
+    player.vx += (moveX/mag) * SPEED * 0.3;
+    player.vy += (moveY/mag) * SPEED * 0.3;
+  }
+
+  // position + friction
+  player.x += player.vx;
+  player.y += player.vy;
+  player.vx *= FRICTION;
+  player.vy *= FRICTION;
+
+  // keep inside bounds
+  player.x = Math.max(12, Math.min(canvas.width-12, player.x));
+  player.y = Math.max(12, Math.min(canvas.height-12, player.y));
+
+  // collide with walls (simple push out)
+  for (const w of walls){
+    if (rectCollide(w.x, w.y, w.w, w.h, player.x, player.y, PLAYER_SIZE)){
+      // compute minimal translation outwards
+      const cx = Math.min(Math.max(player.x, w.x), w.x + w.w);
+      const cy = Math.min(Math.max(player.y, w.y), w.y + w.h);
+      const dx = player.x - cx;
+      const dy = player.y - cy;
+      if (Math.abs(dx) > Math.abs(dy)){
+        player.x += dx > 0 ? 6 : -6; player.vx *= -0.3;
+      } else {
+        player.y += dy > 0 ? 6 : -6; player.vy *= -0.3;
+      }
     }
+  }
+
+  // bullets move; remove old bullets
+  bullets.forEach(b => { b.x += b.dx; b.y += b.dy; });
+  bullets = bullets.filter(b => b.x > -20 && b.x < canvas.width+20 && b.y > -20 && b.y < canvas.height+20 && Date.now() - b.t < 8000);
+
+  // update particles
+  for (let i = particles.length-1; i >= 0; i--){
+    const p = particles[i];
+    p.x += p.vx; p.y += p.vy;
+    p.vx *= 0.98; p.vy *= 0.98;
+    p.life -= 1;
+    if (p.life <= 0) particles.splice(i,1);
+  }
+
+  // send periodic state updates (include currently active bullets)
+  if (socket.readyState === WebSocket.OPEN){
+    socket.send(JSON.stringify({
+      type: "update",
+      state: {
+        x: player.x, y: player.y, vx: player.vx, vy: player.vy, hp: player.hp, username: player.username,
+        bullets: bullets.slice(0,8) // keep small
+      }
+    }));
+  }
+
+  // cooldown UI
+  const remaining = Math.max(0, SHOT_COOLDOWN_MS - (Date.now() - lastShot));
+  cooldownText.textContent = remaining > 0 ? ` | Cooldown: ${(remaining/1000).toFixed(2)}s` : " | Ready";
 }
 
-// ======= Main Loop =======
-function loop() {
-    update();
-    draw();
-    requestAnimationFrame(loop);
+// --- Drawing ---
+function draw(){
+  ctx.clearRect(0,0,canvas.width,canvas.height);
+
+  // background grid
+  ctx.fillStyle = "#0b0b0b";
+  ctx.fillRect(0,0,canvas.width,canvas.height);
+
+  // walls
+  ctx.fillStyle = "#444";
+  walls.forEach(w => ctx.fillRect(w.x, w.y, w.w, w.h));
+
+  // other players
+  for (const id in otherPlayers){
+    const p = otherPlayers[id];
+    if (!p) continue;
+    // shadow
+    ctx.beginPath();
+    ctx.fillStyle = "rgba(0,0,0,0.35)";
+    ctx.ellipse(p.x, p.y+14, PLAYER_SIZE*0.9, 8, 0, 0, Math.PI*2);
+    ctx.fill();
+
+    // body
+    ctx.fillStyle = p.color || "#d44";
+    roundRect(ctx, p.x - PLAYER_SIZE/2, p.y - PLAYER_SIZE/2, PLAYER_SIZE, PLAYER_SIZE, 6, true, false);
+
+    // username
+    ctx.fillStyle = "#fff";
+    ctx.font = "12px Arial";
+    ctx.textAlign = "center";
+    ctx.fillText(p.username || ("P"+id), p.x, p.y - 18);
+
+    // hp bar
+    drawHpBar(p.x - 22, p.y + 18, 44, 6, p.hp);
+  }
+
+  // self
+  ctx.beginPath();
+  ctx.fillStyle = player.color;
+  ctx.ellipse(player.x, player.y+14, PLAYER_SIZE*0.9, 8, 0, 0, Math.PI*2);
+  ctx.fill();
+
+  roundRect(ctx, player.x - PLAYER_SIZE/2, player.y - PLAYER_SIZE/2, PLAYER_SIZE, PLAYER_SIZE, 8, true, false);
+
+  ctx.fillStyle = "#fff";
+  ctx.font = "12px Arial";
+  ctx.textAlign = "center";
+  ctx.fillText(player.username || "You", player.x, player.y - 18);
+
+  drawHpBar(player.x - 28, player.y + 20, 56, 8, player.hp);
+
+  // bullets
+  bullets.forEach(b => {
+    ctx.fillStyle = "#ffea66";
+    roundRect(ctx, b.x - BULLET_SIZE/2, b.y - BULLET_SIZE/2, BULLET_SIZE, BULLET_SIZE, 3, true, false);
+  });
+
+  // particles
+  particles.forEach(p => {
+    ctx.globalAlpha = Math.max(0, p.life/50);
+    ctx.fillStyle = "#f55";
+    ctx.fillRect(p.x, p.y, 3, 3);
+    ctx.globalAlpha = 1;
+  });
 }
-loop();
+
+function roundRect(ctx, x, y, w, h, r, fill, stroke) {
+  if (typeof r === 'undefined') r = 5;
+  ctx.beginPath();
+  ctx.moveTo(x+r, y);
+  ctx.arcTo(x+w, y, x+w, y+h, r);
+  ctx.arcTo(x+w, y+h, x, y+h, r);
+  ctx.arcTo(x, y+h, x, y, r);
+  ctx.arcTo(x, y, x+w, y, r);
+  ctx.closePath();
+  if (fill) ctx.fill();
+  if (stroke) ctx.stroke();
+}
+
+function drawHpBar(x,y,w,h,hp){
+  ctx.fillStyle = "rgba(0,0,0,0.6)";
+  ctx.fillRect(x-1,y-1,w+2,h+2);
+  ctx.fillStyle = "#333";
+  ctx.fillRect(x,y,w,h);
+  const pct = Math.max(0, Math.min(1, hp / PLAYER_MAX_HP));
+  ctx.fillStyle = pct > 0.5 ? "#4caf50" : (pct > 0.25 ? "#ff9800" : "#f44336");
+  ctx.fillRect(x,y, w*pct, h);
+}
+
+// --- Main Loop ---
+function mainLoop(){
+  update();
+  draw();
+  requestAnimationFrame(mainLoop);
+}
+mainLoop();
+
 </script>
-
 </body>
 </html>
-
-
