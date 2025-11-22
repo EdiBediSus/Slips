@@ -1,74 +1,26 @@
+import os
 import asyncio
 import websockets
-import json
-import uuid
-import os
 
-players = {}
-connections = {}
+# Render gives you a PORT automatically
+PORT = int(os.environ.get("PORT", 10000))
 
-async def websocket_handler(ws):
-    player_id = str(uuid.uuid4())
+connected = set()
 
-    players[player_id] = {"x": 400, "y": 300, "bullets": []}
-    connections[player_id] = ws
-
-    print("Player connected:", player_id)
-
+async def handler(websocket):
+    connected.add(websocket)
     try:
-        async for message in ws:
-            data = json.loads(message)
-
-            players[player_id]["x"] = data.get("x", 400)
-            players[player_id]["y"] = data.get("y", 300)
-            players[player_id]["bullets"] = data.get("bullets", [])
-
-            await broadcast()
-
-    except Exception as e:
-        print("WS Error:", e)
-
+        async for message in websocket:
+            # broadcast message to all other players
+            for ws in connected:
+                if ws != websocket:
+                    await ws.send(message)
     finally:
-        del players[player_id]
-        del connections[player_id]
-        await broadcast()
-        print("Player disconnected:", player_id)
-
-
-async def broadcast():
-    if not connections:
-        return
-
-    msg = json.dumps(players)
-    await asyncio.gather(*(ws.send(msg) for ws in connections.values()))
-
-
-# -------- FIX: Accept HTTP requests so Render doesn't crash --------
-async def http_handler(reader, writer):
-    response = (
-        "HTTP/1.1 200 OK\r\n"
-        "Content-Type: text/plain\r\n"
-        "Content-Length: 7\r\n\r\n"
-        "ONLINE"
-    )
-    writer.write(response.encode())
-    await writer.drain()
-    writer.close()
-
+        connected.remove(websocket)
 
 async def main():
-    port = int(os.environ.get("PORT", 10000))
-    print("Running on:", port)
-
-    # HTTP server (Render health checks)
-    http_server = await asyncio.start_server(http_handler, "0.0.0.0", port)
-
-    # WebSocket server
-    ws_server = await websockets.serve(websocket_handler, "0.0.0.0", port)
-
-    print("Servers launched!")
-
-    await asyncio.gather(http_server.serve_forever(), ws_server.wait_closed())
-
+    async with websockets.serve(handler, "0.0.0.0", PORT):
+        print(f"Server running on port {PORT}")
+        await asyncio.Future()
 
 asyncio.run(main())
