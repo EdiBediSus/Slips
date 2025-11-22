@@ -1,118 +1,49 @@
 <!DOCTYPE html>
 <html>
-<head>
-<meta charset="UTF-8">
-<title>Slipper Multiplayer Online</title>
-<style>
-body { margin:0; overflow:hidden; background:#222; }
-canvas { background:#111; display:block; margin:0 auto; }
-</style>
-</head>
-<body>
+<body style="margin:0;overflow:hidden;background:#222">
 
-<canvas id="game"></canvas>
-
+<canvas id="c" width="800" height="600"></canvas>
 <script>
-const canvas = document.getElementById("game");
-const ctx = canvas.getContext("2d");
-canvas.width = 800;
-canvas.height = 600;
+const c = document.getElementById("c");
+const ctx = c.getContext("2d");
 
-let player = { id: null, x: 400, y: 300, bullets: [] };
-let players = {};
-let keys = {};
+let x = 400, y = 300;
+let others = [];
 
-// Change this to your Render app URL
-const ws = new WebSocket("wss://slips-2.onrender.com");
+const ws = new WebSocket("ws://slips-2.onrender.com");
+// if deployed use: wss://yourapp.onrender.com
 
-ws.onopen = () => console.log("Connected to server");
-
-ws.onmessage = msg => {
-    const data = JSON.parse(msg.data);
-
-    if (data.type === "id") {
-        player.id = data.id;
-        return;
-    }
-
-    if (data.type === "players") {
-        players = data.players;
-    }
+ws.onmessage = e => {
+    const data = JSON.parse(e.data);
+    others = data.players;
 };
 
-// Controls
-document.addEventListener("keydown", e => keys[e.key] = true);
-document.addEventListener("keyup", e => delete keys[e.key]);
-
-// Shoot
-canvas.addEventListener("click", e => {
-    const rect = canvas.getBoundingClientRect();
-    const mx = e.clientX - rect.left;
-    const my = e.clientY - rect.top;
-
-    const dx = (mx - player.x) / 15;
-    const dy = (my - player.y) / 15;
-
-    player.bullets.push({ x: player.x, y: player.y, dx, dy });
-});
-
-// Update
-function update() {
-    if (keys["ArrowUp"] || keys["w"]) player.y -= 4;
-    if (keys["ArrowDown"] || keys["s"]) player.y += 4;
-    if (keys["ArrowLeft"] || keys["a"]) player.x -= 4;
-    if (keys["ArrowRight"] || keys["d"]) player.x += 4;
-
-    player.bullets.forEach(b => {
-        b.x += b.dx;
-        b.y += b.dy;
-    });
-
-    player.bullets = player.bullets.filter(b =>
-        b.x > 0 && b.x < canvas.width && b.y > 0 && b.y < canvas.height
-    );
-
-    if (ws.readyState === WebSocket.OPEN && player.id) {
-        ws.send(JSON.stringify({
-            type: "update",
-            id: player.id,
-            x: player.x,
-            y: player.y,
-            bullets: player.bullets
-        }));
-    }
-}
-
-// Draw
-function draw() {
-    ctx.clearRect(0,0,canvas.width,canvas.height);
-
-    // Me
-    ctx.fillStyle = "cyan";
-    ctx.fillRect(player.x - 10, player.y - 10, 20, 20);
-    player.bullets.forEach(b => {
-        ctx.fillStyle = "yellow";
-        ctx.fillRect(b.x - 4, b.y - 4, 8, 8);
-    });
-
-    // Others
-    for (const id in players) {
-        if (String(id) === String(player.id)) continue;
-        const p = players[id];
-
-        ctx.fillStyle = "red";
-        ctx.fillRect(p.x - 10, p.y - 10, 20, 20);
-
-        (p.bullets || []).forEach(b => {
-            ctx.fillStyle = "orange";
-            ctx.fillRect(b.x - 4, b.y - 4, 8, 8);
-        });
-    }
-}
+let keys = {};
+document.onkeydown = e => keys[e.key] = true;
+document.onkeyup   = e => delete keys[e.key];
 
 function loop() {
-    update();
-    draw();
+    if (keys["w"]) y -= 4;
+    if (keys["s"]) y += 4;
+    if (keys["a"]) x -= 4;
+    if (keys["d"]) x += 4;
+
+    if (ws.readyState === 1)
+        ws.send(JSON.stringify({x, y}));
+
+    ctx.clearRect(0,0,800,600);
+
+    // draw me (first player)
+    ctx.fillStyle = "cyan";
+    ctx.fillRect(x-10,y-10,20,20);
+
+    // draw others
+    ctx.fillStyle = "red";
+    others.forEach(p=>{
+        if (p.x !== x || p.y !== y)
+            ctx.fillRect(p.x-10, p.y-10, 20, 20);
+    });
+
     requestAnimationFrame(loop);
 }
 loop();
