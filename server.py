@@ -1,40 +1,38 @@
-import os
 import asyncio
 import websockets
 import json
+import uuid
 
-PORT = int(os.environ.get("PORT", 6789))
-
-players = {}  # { websocket: {x,y} }
+players = {}
 
 async def handler(ws):
-    # Add player
-    players[ws] = {"x": 400, "y": 300}
+    player_id = str(uuid.uuid4())
+    players[player_id] = {"x": 400, "y": 300, "bullets": []}
 
     try:
         async for msg in ws:
             data = json.loads(msg)
-            players[ws] = {"x": data["x"], "y": data["y"]}
 
-            # Broadcast all players to everyone
-            out = []
-            for p in players.values():
-                out.append(p)
+            players[player_id] = {
+                "x": data.get("x", 0),
+                "y": data.get("y", 0),
+                "bullets": data.get("bullets", [])
+            }
 
-            msg = json.dumps({"players": out})
-
-            await asyncio.gather(*[
-                c.send(msg) for c in players.keys()
-            ])
-
+            await broadcast()
     except:
         pass
     finally:
-        del players[ws]
+        del players[player_id]
+        await broadcast()
+
+async def broadcast():
+    if players:
+        msg = json.dumps(players)
+        await asyncio.wait([ws.send(msg) for ws in list(websockets.server.WebSocketServerProtocol.instances)])
 
 async def main():
-    async with websockets.serve(handler, "0.0.0.0", PORT):
-        print("Server running on", PORT)
-        await asyncio.Future()
+    server = await websockets.serve(handler, "0.0.0.0", 10000)
+    await server.wait_closed()
 
 asyncio.run(main())
