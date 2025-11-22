@@ -2,44 +2,39 @@ import os
 import asyncio
 import websockets
 import json
-import uuid
 
 PORT = int(os.environ.get("PORT", 6789))
 
-players = {}
+players = {}  # { websocket: {x,y} }
 
-async def handler(ws, path):
-    player_id = str(uuid.uuid4())
-    players[player_id] = {"x": 400, "y": 300, "bullets": []}
-
-    # Send ID to client
-    await ws.send(json.dumps({"type": "id", "id": player_id}))
+async def handler(ws):
+    # Add player
+    players[ws] = {"x": 400, "y": 300}
 
     try:
-        async for message in ws:
-            data = json.loads(message)
-            if data.get("type") == "update":
-                players[player_id] = {
-                    "x": data["x"],
-                    "y": data["y"],
-                    "bullets": data.get("bullets", [])
-                }
+        async for msg in ws:
+            data = json.loads(msg)
+            players[ws] = {"x": data["x"], "y": data["y"]}
 
-            # Broadcast all players to all connected clients
-            if websockets.broadcast:
-                broadcast_data = json.dumps({"type": "players", "players": players})
-                await broadcast(ws, broadcast_data)
+            # Broadcast all players to everyone
+            out = []
+            for p in players.values():
+                out.append(p)
+
+            msg = json.dumps({"players": out})
+
+            await asyncio.gather(*[
+                c.send(msg) for c in players.keys()
+            ])
+
+    except:
+        pass
     finally:
-        del players[player_id]
-
-async def broadcast(sender_ws, message):
-    for ws in sender_ws.server.websockets:
-        if ws.open:
-            await ws.send(message)
+        del players[ws]
 
 async def main():
     async with websockets.serve(handler, "0.0.0.0", PORT):
-        print(f"Server started on port {PORT}")
-        await asyncio.Future()  # run forever
+        print("Server running on", PORT)
+        await asyncio.Future()
 
 asyncio.run(main())
