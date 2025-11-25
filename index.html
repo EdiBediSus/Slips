@@ -2,77 +2,548 @@
 <html lang="en">
 <head>
 <meta charset="UTF-8" />
-<title>Slipper Multiplayer</title>
+<title>Slipper Attack</title>
 <style>
-body { margin:0; overflow:hidden; background:#111; font-family:Arial,Helvetica,sans-serif; }
-canvas { display:block; margin:0 auto; background:#111; }
+/* ------------------------------------- */
+/* CORE GAME STYLES */
+/* ------------------------------------- */
+body { 
+    margin:0; 
+    overflow:hidden; 
+    font-family:Arial,Helvetica,sans-serif; 
+    background: linear-gradient(135deg, #0a0a0a 0%, #1a1a2e 50%, #16213e 100%);
+}
+canvas { 
+    display:block; 
+    margin:0 auto; 
+    background: radial-gradient(circle at center, #1a1a1a 0%, #0f0f0f 100%);
+    box-shadow: 0 0 50px rgba(0,0,0,0.8);
+}
 
-#ui { position: absolute; left: 10px; top: 10px; color: #ddd; }
-#username { padding:6px; border-radius:6px; border:0; }
+#ui { 
+    position: absolute; 
+    left: 10px; 
+    top: 10px; 
+    color: #fff;
+    background: rgba(0,0,0,0.5);
+    padding: 8px 12px;
+    border-radius: 8px;
+    font-size: 14px;
+}
+
+#usernameContainer {
+    position: absolute;
+    left: 10px;
+    top: 50px;
+    background: rgba(0,0,0,0.6);
+    padding: 8px;
+    border-radius: 8px;
+}
+
+#usernameInput {
+    padding: 6px 10px;
+    border-radius: 6px;
+    border: 2px solid #4cd;
+    background: #222;
+    color: #fff;
+    font-size: 13px;
+    width: 150px;
+}
+
+#usernameInput:focus {
+    outline: none;
+    border-color: #39f;
+}
+
+#leaderboard {
+    position: absolute;
+    right: 10px;
+    top: 10px;
+    background: rgba(0,0,0,0.7);
+    padding: 12px;
+    border-radius: 8px;
+    color: #fff;
+    min-width: 180px;
+    font-size: 13px;
+}
+
+#leaderboard h3 {
+    margin: 0 0 10px 0;
+    font-size: 16px;
+    color: #4cd;
+    border-bottom: 2px solid #4cd;
+    padding-bottom: 5px;
+}
+
+.leaderboard-entry {
+    padding: 4px 0;
+    display: flex;
+    justify-content: space-between;
+}
+
+.leaderboard-entry.me {
+    color: #4cd;
+    font-weight: bold;
+}
 
 #chat {
-    position: absolute; left: 10px; top: 50px; width: 220px; height: 500px;
-    background: rgba(0,0,0,0.6); color: #fff; font-family: monospace;
-    overflow-y: auto; padding: 6px; border-radius: 6px;
+    position: absolute; 
+    left: 10px; 
+    top: 100px; 
+    width: 220px; 
+    height: 400px;
+    background: rgba(0,0,0,0.6); 
+    color: #fff; 
+    font-family: monospace;
+    overflow-y: auto; 
+    padding: 6px; 
+    border-radius: 6px;
 }
 #chatInput {
-    position: absolute; left: 10px; bottom: 10px; width: 220px; padding: 6px;
-    border-radius: 6px; border: none;
+    position: absolute; 
+    left: 10px; 
+    bottom: 10px; 
+    width: 220px; 
+    padding: 6px;
+    border-radius: 6px; 
+    border: 2px solid #333;
+    background: rgba(0,0,0,0.7);
+    color: #fff;
 }
+
+#chatInput:focus {
+    outline: none;
+    border-color: #4cd;
+}
+
 #cooldownText {
-    color: #fff; margin-left: 8px;
+    color: #fff; 
+    margin-left: 8px;
+}
+
+/* Death Message Overlay */
+#deathMessage {
+    position: absolute;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%);
+    font-size: 48px;
+    font-weight: bold;
+    color: #ff5722;
+    text-shadow: 0 0 20px rgba(255, 87, 34, 0.8), 0 0 40px rgba(255, 87, 34, 0.5);
+    display: none;
+    z-index: 100;
+    animation: pulse 0.5s ease-in-out infinite;
+}
+
+@keyframes pulse {
+    0%, 100% { transform: translate(-50%, -50%) scale(1); }
+    50% { transform: translate(-50%, -50%) scale(1.1); }
+}
+
+/* ------------------------------------- */
+/* STARTUP SCREEN STYLES */
+/* ------------------------------------- */
+#startupScreen {
+    position: absolute;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    background: linear-gradient(135deg, #1e1e2f, #3a3a59); 
+    color: white;
+    display: flex; 
+    flex-direction: column;
+    justify-content: center;
+    align-items: center;
+    z-index: 1000;
+    overflow: hidden;
+}
+
+.container {
+    text-align: center;
+    padding: 40px;
+    background: rgba(255, 255, 255, 0.1);
+    border-radius: 20px;
+    backdrop-filter: blur(10px);
+    box-shadow: 0 0 40px rgba(0,0,0,0.4);
+    width: 450px;
+    z-index: 1001;
+}
+
+#gameTitle {
+    font-size: 48px;
+    margin-bottom: 20px;
+    color: white;
+    text-shadow: 0 0 10px rgba(255, 255, 255, 0.3);
+    animation: wobble 1.2s infinite ease-in-out;
+    font-weight: bold;
+}
+
+@keyframes wobble {
+    0% { transform: rotate(0deg); }
+    50% { transform: rotate(1deg); }
+    100% { transform: rotate(0deg); }
+}
+
+#startupUsername {
+    padding: 12px 15px;
+    border-radius: 8px;
+    border: 2px solid #4cd;
+    margin-bottom: 20px;
+    text-align: center;
+    font-size: 18px;
+    background: #222;
+    color: #fff;
+    width: 70%;
+    box-sizing: border-box;
+}
+
+.menu-button {
+    width: 80%;
+    padding: 15px;
+    margin: 10px auto; 
+    background: #ffcf60;
+    color: #111; 
+    border: none;
+    border-radius: 12px;
+    font-size: 20px;
+    cursor: pointer;
+    transition: 0.2s;
+    font-weight: bold;
+    display: block;
+}
+
+.menu-button:hover:not(:disabled) {
+    background: #ffd98e;
+    transform: scale(1.05);
+}
+.menu-button:disabled {
+    cursor: not-allowed;
+    background: #555;
+    color: #aaa;
+    opacity: 0.6;
+}
+
+.footer {
+    margin-top: 15px;
+    font-size: 14px;
+    opacity: 0.6;
+}
+
+/* ------------------------------------- */
+/* STICKMAN STYLES */
+/* ------------------------------------- */
+.stickman {
+    position: absolute;
+    width: 60px; 
+    height: 120px; 
+    top: 50%;
+    transform: translateY(-50%);
+    z-index: 999; 
+    color: #fff; 
+    --limb-thickness: 3px;
+    --limb-length: 35px;
+}
+#stickman1 { left: 15%; } 
+#stickman2 { right: 15%; } 
+
+.stickman .head {
+    width: 18px; height: 18px; border-radius: 50%; background: currentColor;
+    position: absolute; top: 0; left: 50%; transform: translateX(-50%);
+}
+.stickman .body {
+    width: var(--limb-thickness); height: var(--limb-length); background: currentColor;
+    position: absolute; top: 18px; left: 50%; transform: translateX(-50%);
+}
+
+.stickman .leg {
+    width: var(--limb-thickness); height: var(--limb-length); background: currentColor;
+    position: absolute; top: calc(18px + var(--limb-length) - 5px); 
+    transform-origin: top center; left: 50%;
+}
+.stickman .left-leg { transform: translateX(-50%) rotate(15deg); }
+.stickman .right-leg { transform: translateX(-50%) rotate(-15deg); }
+
+.stickman .arm {
+    width: var(--limb-thickness); height: 30px; background: currentColor;
+    position: absolute; top: 25px; transform-origin: top center;
+}
+
+#stickman1 .left-arm {
+    left: calc(50% - 10px);
+    transform: rotate(45deg); 
+}
+#stickman1 .right-arm {
+    left: calc(50% + 7px);
+    transform: rotate(-15deg); 
+}
+
+#stickman2 .right-arm {
+    left: calc(50% + 7px);
+    transform: rotate(-45deg); 
+}
+#stickman2 .left-arm {
+    left: calc(50% - 10px);
+    transform: rotate(15deg); 
+}
+
+.slipper {
+    position: absolute;
+    width: 15px; height: 6px; border-radius: 2px;
+    bottom: -6px; 
+}
+.slipper.red {
+    background: #ff5722; 
+    left: -6px;
+    transform: rotate(-30deg);
+}
+.slipper.blue {
+    background: #39f; 
+    right: -6px;
+    transform: rotate(30deg);
 }
 </style>
 </head>
 <body>
 
+<div id="startupScreen">
+    <div id="stickman1" class="stickman">
+        <div class="head"></div>
+        <div class="body"></div>
+        <div class="arm left-arm">
+            <div class="slipper red"></div>
+        </div>
+        <div class="arm right-arm"></div>
+        <div class="leg left-leg"></div>
+        <div class="leg right-leg"></div>
+    </div>
+    
+    <div class="container">
+        <h1 id="gameTitle">SLIPPER ATTACK</h1>
+
+        <div id="connectStatus">Connecting to server...</div>
+        <input id="startupUsername" placeholder="Enter username" />
+        
+        <button id="startGameBtn" class="menu-button" disabled>Start Game</button>
+        
+        <button class="menu-button" onclick="openSettings()">Settings</button>
+        <button class="menu-button" onclick="openHow()">How to Play</button>
+        <button class="menu-button" onclick="window.close()">Exit</button>
+
+        <p class="footer">PC Edition • v1.2</p>
+    </div>
+
+    <div id="stickman2" class="stickman">
+        <div class="head"></div>
+        <div class="body"></div>
+        <div class="arm left-arm"></div>
+        <div class="arm right-arm">
+            <div class="slipper blue"></div>
+        </div>
+        <div class="leg left-leg"></div>
+        <div class="leg right-leg"></div>
+    </div>
+</div>
+
+<div id="deathMessage">YOU DIED!</div>
+
 <div id="ui">
-  <input id="username" placeholder="Enter username" />
+  <div>HP: <span id="hpText">100</span></div>
   <span id="cooldownText"></span>
 </div>
+
+<div id="usernameContainer">
+    <input id="usernameInput" placeholder="Change username" maxlength="16" />
+</div>
+
+<div id="leaderboard">
+    <h3>🏆 Leaderboard</h3>
+    <div id="leaderboardList"></div>
+</div>
+
 <div id="chat"></div>
 <input id="chatInput" placeholder="Type a message" />
 
 <canvas id="game"></canvas>
 
 <script>
+function openSettings() {
+    alert("Settings menu not implemented yet!");
+}
+function openHow() {
+    alert("Throw slippers, dodge chaos, win! WASD to move, Click to throw.");
+}
+
 const canvas = document.getElementById("game");
 const ctx = canvas.getContext("2d");
 canvas.width = 900; canvas.height = 600;
 
-const WS_URL = "wss://slips-4.onrender.com"; // Your Render WebSocket
+const WS_URL = "wss://slips-4.onrender.com"; 
 const socket = new WebSocket(WS_URL);
 
-const PLAYER_SIZE = 22, BULLET_SIZE = 8, PLAYER_MAX_HP = 100;
+const PLAYER_SIZE = 16; // Player radius
+const BULLET_SIZE = 6;
+const PLAYER_MAX_HP = 100;
 const BULLET_SPEED = 10, SHOT_COOLDOWN_MS = 300, FRICTION = 0.86, SPEED = 3.2;
 const BULLET_DAMAGE = 20, KNOCKBACK = 5;
+const RESP_COOLDOWN_MS = 3000; 
 
-let player = { x:450, y:300, vx:0, vy:0, color:"#39f", id:null, hp:PLAYER_MAX_HP, username:"" };
+let player = { 
+    x:450, y:300, vx:0, vy:0, 
+    renderX: 450, renderY: 300,
+    color:"#39f", id:null, hp:PLAYER_MAX_HP, 
+    username:"", deadUntil: 0, kills: 0 
+};
 let bullets = [], otherPlayers = {}, lastShot=0, keys=[];
 
 const chatDiv = document.getElementById("chat");
 const chatInput = document.getElementById("chatInput");
-const usernameInput = document.getElementById("username");
 const cooldownText = document.getElementById("cooldownText");
+const hpText = document.getElementById("hpText");
+const deathMessage = document.getElementById("deathMessage");
+const leaderboardList = document.getElementById("leaderboardList");
 
-usernameInput.value = "Player"+Math.floor(Math.random()*9000);
-usernameInput.dispatchEvent(new Event('change'));
-usernameInput.addEventListener("change", ()=>{
-  player.username = usernameInput.value.trim().slice(0,16)||"Player";
-  if(socket.readyState===WebSocket.OPEN) socket.send(JSON.stringify({type:"setName", name:player.username}));
+const startupScreen = document.getElementById("startupScreen");
+const startupUsernameInput = document.getElementById("startupUsername");
+const usernameInput = document.getElementById("usernameInput");
+const connectStatus = document.getElementById("connectStatus");
+const startGameBtn = document.getElementById("startGameBtn");
+
+startupUsernameInput.value = "Player"+Math.floor(Math.random()*9000);
+
+// Username change in-game
+usernameInput.addEventListener("keydown", e => {
+    if(e.key === "Enter" && usernameInput.value.trim() !== "") {
+        const newName = usernameInput.value.trim().slice(0, 16);
+        player.username = newName;
+        socket.send(JSON.stringify({type:"setName", name: newName}));
+        usernameInput.value = "";
+        usernameInput.blur();
+    }
 });
 
-// --- WebSocket ---
-socket.onopen = ()=>console.log("✅ Connected to server via WebSocket!");
-socket.onerror = err=>console.error("❌ WebSocket error:", err);
-socket.onclose = ()=>console.warn("⚠ WebSocket closed");
+socket.onopen = ()=>{
+  console.log("✅ Connected to server via WebSocket!");
+  connectStatus.textContent = "Connected. Enter your name and click START!";
+  startGameBtn.disabled = false;
+};
+socket.onerror = err=>{
+    console.error("❌ WebSocket error:", err);
+    connectStatus.textContent = "Connection failed. Check if server is running.";
+};
+socket.onclose = ()=>{
+    console.warn("⚠ WebSocket closed");
+    connectStatus.textContent = "Disconnected from server.";
+    startGameBtn.disabled = true;
+    startupScreen.style.display = 'flex'; 
+};
 
 socket.onmessage = ev=>{
   const data = JSON.parse(ev.data);
 
-  if(data.type==="init"){ player.id = data.id; return; }
-  if(data.type==="state" && data.playerId!==player.id) otherPlayers[data.playerId]=data.state;
+  if(data.type==="init"){ 
+    player.id = data.id; 
+    player.deadUntil = data.deadUntil || 0;
+    player.hp = data.hp || PLAYER_MAX_HP;
+    return; 
+  }
+  
+  if(data.type==="state" && data.playerId!==player.id) {
+    const state = data.state;
+    
+    // Initialize render positions if this is a new player
+    if(!otherPlayers[data.playerId]) {
+        state.renderX = state.x;
+        state.renderY = state.y;
+        state.kills = state.kills || 0;
+        state.bullets = state.bullets || [];
+    } else {
+        // Keep existing render positions for smooth interpolation
+        state.renderX = otherPlayers[data.playerId].renderX;
+        state.renderY = otherPlayers[data.playerId].renderY;
+        state.kills = state.kills || otherPlayers[data.playerId].kills || 0;
+        state.bullets = state.bullets || [];
+    }
+    
+    otherPlayers[data.playerId] = state;
+  }
+  
   if(data.type==="leave") delete otherPlayers[data.playerId];
+  
+  if(data.type==="hit" && data.playerId===player.id){
+      player.hp = data.hp;
+      player.vx += data.knock.x;
+      player.vy += data.knock.y;
+      hpText.textContent = Math.max(0, Math.round(player.hp));
+  }
+  
+  if(data.type==="dead" && data.playerId===player.id){
+      player.hp = 0;
+      player.deadUntil = data.deadUntil || Date.now() + RESP_COOLDOWN_MS;
+      player.vx = 0; 
+      player.vy = 0;
+      hpText.textContent = "0";
+      
+      // Show death message
+      deathMessage.style.display = 'block';
+      setTimeout(() => {
+          deathMessage.style.display = 'none';
+      }, 3000);
+  }
+  
+  // Update other player deaths
+  if(data.type==="dead" && data.playerId!==player.id && otherPlayers[data.playerId]){
+      otherPlayers[data.playerId].hp = 0;
+      otherPlayers[data.playerId].deadUntil = data.deadUntil;
+  }
+  
+  if(data.type==="respawned" && data.playerId===player.id){
+      player.hp = PLAYER_MAX_HP; 
+      player.deadUntil = 0;
+      player.x = 400; player.y = 300; player.vx = 0; player.vy = 0;
+      player.renderX = 400; player.renderY = 300;
+      hpText.textContent = "100";
+      
+      // Show respawn message
+      deathMessage.textContent = "RESPAWNED!";
+      deathMessage.style.color = "#4cd";
+      deathMessage.style.display = 'block';
+      setTimeout(() => {
+          deathMessage.style.display = 'none';
+          deathMessage.textContent = "YOU DIED!";
+          deathMessage.style.color = "#ff5722";
+      }, 1000);
+  }
+  
+  // Update other player respawns
+  if(data.type==="respawned" && data.playerId!==player.id && otherPlayers[data.playerId]){
+      otherPlayers[data.playerId].hp = PLAYER_MAX_HP;
+      otherPlayers[data.playerId].deadUntil = 0;
+  }
+  
+  if(data.type==="kill") {
+      // Update kill count
+      if(data.killerId === player.id) {
+          player.kills = data.killerKills || (player.kills + 1);
+      }
+      
+      // Update killer's kills in other players list
+      if(otherPlayers[data.killerId]) {
+          otherPlayers[data.killerId].kills = data.killerKills || ((otherPlayers[data.killerId].kills || 0) + 1);
+      }
+      
+      // Show kill notification in chat
+      const killMsg = document.createElement("div");
+      killMsg.style.color = "#ff5722";
+      killMsg.style.fontWeight = "bold";
+      killMsg.textContent = `💀 ${data.killerName} eliminated ${data.victimName}`;
+      chatDiv.appendChild(killMsg);
+      chatDiv.scrollTop = chatDiv.scrollHeight;
+      
+      // Force leaderboard update immediately
+      updateLeaderboard();
+  }
 
   if(data.type==="chat") {
     const line = document.createElement("div");
@@ -83,20 +554,33 @@ socket.onmessage = ev=>{
   }
 };
 
-// --- Chat input ---
+startGameBtn.addEventListener("click", ()=>{
+    if (socket.readyState !== WebSocket.OPEN || startGameBtn.disabled) {
+        return;
+    }
+    
+    const username = startupUsernameInput.value.trim().slice(0,16)||"Player";
+    player.username = username;
+
+    socket.send(JSON.stringify({type:"setName", name:player.username}));
+
+    startupScreen.style.display = 'none';
+});
+
 chatInput.addEventListener("keydown", e=>{
-  if(e.key==="Enter" && chatInput.value.trim()!=="" && player.id){
+  if(e.key==="Enter" && chatInput.value.trim()!=="" && player.id && startupScreen.style.display === 'none'){
     const msg = chatInput.value.trim();
     socket.send(JSON.stringify({type:"chat", message:msg}));
     chatInput.value = "";
   }
 });
 
-// --- Controls ---
 document.addEventListener("keydown", e => keys[e.key]=true);
 document.addEventListener("keyup", e => keys[e.key]=false);
 
 canvas.addEventListener("click", e=>{
+  if(player.deadUntil > Date.now() || startupScreen.style.display !== 'none') return; 
+
   const now=Date.now();
   if(now-lastShot<SHOT_COOLDOWN_MS) return;
   lastShot=now;
@@ -107,77 +591,224 @@ canvas.addEventListener("click", e=>{
   const angle = Math.atan2(my-player.y, mx-player.x);
   const dx = Math.cos(angle)*BULLET_SPEED;
   const dy = Math.sin(angle)*BULLET_SPEED;
+  
   bullets.push({x:player.x,y:player.y,dx,dy,t:Date.now(),owner:player.id});
+  
   player.vx -= dx*0.02;
   player.vy -= dy*0.02;
 });
 
-// --- Game Loop ---
 function update(){
-  let moveX=0, moveY=0;
-  if(keys.w||keys.ArrowUp) moveY=-1;
-  if(keys.s||keys.ArrowDown) moveY=1;
-  if(keys.a||keys.ArrowLeft) moveX=-1;
-  if(keys.d||keys.ArrowRight) moveX=1;
+  const IS_DEAD = player.deadUntil > Date.now();
+  const IS_GAME_ACTIVE = startupScreen.style.display === 'none';
 
-  if(moveX||moveY){
-    const mag = Math.hypot(moveX, moveY)||1;
-    player.vx += (moveX/mag)*SPEED*0.3;
-    player.vy += (moveY/mag)*SPEED*0.3;
+  if(!IS_DEAD && IS_GAME_ACTIVE){
+    let moveX=0, moveY=0;
+    if(keys.w||keys.ArrowUp) moveY=-1;
+    if(keys.s||keys.ArrowDown) moveY=1;
+    if(keys.a||keys.ArrowLeft) moveX=-1;
+    if(keys.d||keys.ArrowRight) moveX=1;
+
+    if(moveX||moveY){
+      const mag = Math.hypot(moveX, moveY)||1;
+      player.vx += (moveX/mag)*SPEED*0.3;
+      player.vy += (moveY/mag)*SPEED*0.3;
+    }
+  } else {
+    player.vx = 0;
+    player.vy = 0;
   }
-
+  
   player.x += player.vx; player.y += player.vy;
   player.vx *= FRICTION; player.vy *= FRICTION;
+  
   player.x = Math.max(12, Math.min(canvas.width-12, player.x));
   player.y = Math.max(12, Math.min(canvas.height-12, player.y));
+  
+  // Smooth interpolation for own player
+  player.renderX += (player.x - player.renderX) * 0.3;
+  player.renderY += (player.y - player.renderY) * 0.3;
 
-  bullets.forEach(b=>{ b.x+=b.dx; b.y+=b.dy; });
-  bullets = bullets.filter(b => b.x>-20 && b.x<canvas.width+20 && b.y>-20 && b.y<canvas.height+20 && Date.now()-b.t<8000);
-
-  // Send state to server
-  if(socket.readyState===WebSocket.OPEN){
-    socket.send(JSON.stringify({
-      type:"update",
-      state:{
-        x:player.x, y:player.y,
-        vx:player.vx, vy:player.vy,
-        hp:player.hp, username:player.username,
-        bullets: bullets.slice(0,8)
-      }
-    }));
+  // Smooth interpolation for other players
+  for(const id in otherPlayers) {
+      const p = otherPlayers[id];
+      p.renderX += (p.x - p.renderX) * 0.2;
+      p.renderY += (p.y - p.renderY) * 0.2;
   }
 
-  cooldownText.textContent = Math.max(0,SHOT_COOLDOWN_MS-(Date.now()-lastShot))/1000>0 ? 
-    ` | Cooldown: ${(Math.max(0,SHOT_COOLDOWN_MS-(Date.now()-lastShot))/1000).toFixed(2)}s` : " | Ready";
+  // Update bullets - DON'T do client-side collision, let server handle it
+  bullets.forEach(b => { 
+      b.x += b.dx; 
+      b.y += b.dy;
+  });
+  
+  // Remove out-of-bounds bullets only
+  bullets = (!IS_GAME_ACTIVE || IS_DEAD) ? [] : bullets.filter(b => 
+      b.x>-20 && b.x<canvas.width+20 && 
+      b.y>-20 && b.y<canvas.height+20 && 
+      Date.now()-b.t<8000
+  );
+
+  if(socket.readyState===WebSocket.OPEN && IS_GAME_ACTIVE){
+    const serverBullets = bullets.map(b => ({
+      x: b.x, 
+      y: b.y, 
+      dx: b.dx, 
+      dy: b.dy
+    }));
+    
+    if (!IS_DEAD || player.vx !== 0 || player.vy !== 0) {
+      socket.send(JSON.stringify({
+        type:"update",
+        state:{
+          x:player.x, y:player.y,
+          vx:player.vx, vy:player.vy,
+          bullets: serverBullets
+        }
+      }));
+    }
+  }
+
+  if (IS_DEAD) {
+    const respawnRemaining = (player.deadUntil - Date.now()) / 1000;
+    cooldownText.textContent = ` | Respawning: ${Math.max(0, respawnRemaining).toFixed(1)}s`;
+  } else {
+    let cooldownTime = Math.max(0,SHOT_COOLDOWN_MS-(Date.now()-lastShot))/1000;
+    cooldownText.textContent = cooldownTime > 0 ? 
+      ` | Cooldown: ${cooldownTime.toFixed(2)}s` : ""; 
+  }
+  
+  // Update HP display
+  hpText.textContent = Math.max(0, Math.round(player.hp));
+  
+  // Update leaderboard
+  updateLeaderboard();
+}
+
+function updateLeaderboard() {
+    const allPlayers = [{
+        id: player.id, 
+        username: player.username || "You", 
+        kills: player.kills || 0
+    }];
+    
+    // Add all other players
+    for(const id in otherPlayers) {
+        allPlayers.push({
+            id: id,
+            username: otherPlayers[id].username || "Player",
+            kills: otherPlayers[id].kills || 0
+        });
+    }
+    
+    // Sort by kills (highest first)
+    allPlayers.sort((a, b) => b.kills - a.kills);
+    
+    // Display top 10
+    leaderboardList.innerHTML = allPlayers.slice(0, 10).map((p, i) => 
+        `<div class="leaderboard-entry ${p.id === player.id ? 'me' : ''}">
+            <span>${i+1}. ${p.username}</span>
+            <span>${p.kills} 💀</span>
+        </div>`
+    ).join('');
+}
+
+function drawPlayer(p, isMe) {
+    const isCooldown = p.deadUntil > Date.now();
+    const x = p.renderX;
+    const y = p.renderY;
+    
+    // Draw larger gray rectangle if dead/on cooldown
+    if (isCooldown) {
+        ctx.fillStyle = `rgba(100, 100, 100, 0.4)`;
+        ctx.fillRect(x - PLAYER_SIZE - 5, y - PLAYER_SIZE - 5, (PLAYER_SIZE + 5) * 2, (PLAYER_SIZE + 5) * 2);
+
+        // Draw cooldown progress bar
+        const cooldownTotal = RESP_COOLDOWN_MS;
+        const cooldownElapsed = Date.now() - (p.deadUntil - cooldownTotal);
+        const ratio = Math.min(1, Math.max(0, cooldownElapsed / cooldownTotal));
+        
+        ctx.strokeStyle = p.color;
+        ctx.lineWidth = 3;
+        const barWidth = (PLAYER_SIZE + 5) * 2 * ratio;
+        ctx.strokeRect(x - PLAYER_SIZE - 5, y - PLAYER_SIZE - 5, barWidth, (PLAYER_SIZE + 5) * 2);
+    }
+    
+    // Draw the player as a rectangle/block
+    ctx.fillStyle = p.color;
+    ctx.fillRect(x - PLAYER_SIZE, y - PLAYER_SIZE, PLAYER_SIZE * 2, PLAYER_SIZE * 2);
+
+    // Draw Health Bar - FIXED: Always calculate from current HP value
+    const currentHP = Math.max(0, Math.min(PLAYER_MAX_HP, p.hp));
+    const hpPercent = currentHP / PLAYER_MAX_HP;
+    
+    // Red background
+    ctx.fillStyle = 'red';
+    ctx.fillRect(x - 20, y - PLAYER_SIZE - 10, 40, 5);
+    
+    // Health bar color based on HP percentage
+    if(hpPercent > 0.5) {
+        ctx.fillStyle = '#00ff00'; // Bright green
+    } else if(hpPercent > 0.25) {
+        ctx.fillStyle = '#ffff00'; // Yellow
+    } else if(hpPercent > 0) {
+        ctx.fillStyle = '#ff8800'; // Orange
+    }
+    
+    // Only draw health bar if HP > 0
+    if(currentHP > 0) {
+        const healthWidth = hpPercent * 40;
+        ctx.fillRect(x - 20, y - PLAYER_SIZE - 10, healthWidth, 5);
+    }
+
+    // Draw Username
+    ctx.fillStyle = '#fff';
+    ctx.font = '12px Arial';
+    ctx.textAlign = 'center';
+    ctx.fillText(p.username, x, y - PLAYER_SIZE - 15);
+
+    // Draw bullets for this player
+    if (isMe) {
+        // Draw own bullets
+        bullets.forEach(b => {
+            ctx.fillStyle = '#ff5722';
+            ctx.beginPath();
+            ctx.arc(b.x, b.y, BULLET_SIZE, 0, Math.PI * 2);
+            ctx.fill();
+        });
+    } else {
+        // Draw other player's bullets
+        if(p.bullets && Array.isArray(p.bullets)) {
+            p.bullets.forEach(b => {
+                ctx.fillStyle = '#ff5722';
+                ctx.beginPath();
+                ctx.arc(b.x, b.y, BULLET_SIZE, 0, Math.PI * 2);
+                ctx.fill();
+            });
+        }
+    }
 }
 
 function draw(){
   ctx.clearRect(0,0,canvas.width,canvas.height);
-  ctx.fillStyle="#0b0b0b"; ctx.fillRect(0,0,canvas.width,canvas.height);
 
-  // Other players
+  if(startupScreen.style.display !== 'none') return;
+
   for(const id in otherPlayers){
-    const p=otherPlayers[id];
-    ctx.fillStyle=p.color||"#f44";
-    ctx.fillRect(p.x-10,p.y-10,20,20);
-    ctx.fillStyle="#fff"; ctx.font="12px Arial"; ctx.textAlign="center";
-    ctx.fillText(p.username||("P"+id),p.x,p.y-14);
+    const p = otherPlayers[id];
+    drawPlayer(p, false);
   }
-
-  // Self
-  ctx.fillStyle=player.color;
-  ctx.fillRect(player.x-10,player.y-10,20,20);
-  ctx.fillStyle="#fff"; ctx.fillText(player.username||"You", player.x, player.y-14);
-
-  // Bullets
-  bullets.forEach(b=>{
-    ctx.fillStyle="#ffea66";
-    ctx.fillRect(b.x-4,b.y-4,8,8);
-  });
+  
+  drawPlayer(player, true);
 }
 
-function loop(){ update(); draw(); requestAnimationFrame(loop); }
-loop();
+function gameLoop(){
+  update();
+  draw();
+  requestAnimationFrame(gameLoop);
+}
+
+gameLoop();
 </script>
 </body>
 </html>
