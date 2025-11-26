@@ -377,7 +377,7 @@ function openHow() {
 
 const canvas = document.getElementById("game");
 const ctx = canvas.getContext("2d");
-canvas.width = 900; canvas.height = 600;
+canvas.width = 1000; canvas.height = 700;
 
 const WS_URL = "wss://slips-4.onrender.com"; 
 const socket = new WebSocket(WS_URL);
@@ -387,12 +387,149 @@ const BULLET_SIZE = 6;
 const PLAYER_MAX_HP = 100;
 const BULLET_SPEED = 10, SHOT_COOLDOWN_MS = 300, FRICTION = 0.86, SPEED = 3.2;
 const BULLET_DAMAGE = 20, KNOCKBACK = 5;
-const RESP_COOLDOWN_MS = 3000; 
+const RESP_COOLDOWN_MS = 3000;
+const MAP_CHANGE_INTERVAL = 180000; // 3 minutes in milliseconds
+
+// Multiple map layouts
+const MAPS = [
+    // Map 1: Cross layout
+    {
+        name: "The Cross",
+        walls: [
+            // Outer walls
+            {x: 0, y: 0, width: 1000, height: 20, color: '#2c3e50'},
+            {x: 0, y: 680, width: 1000, height: 20, color: '#2c3e50'},
+            {x: 0, y: 0, width: 20, height: 700, color: '#2c3e50'},
+            {x: 980, y: 0, width: 20, height: 700, color: '#2c3e50'},
+            
+            // Cross barriers
+            {x: 200, y: 200, width: 200, height: 20, color: '#34495e'},
+            {x: 600, y: 200, width: 200, height: 20, color: '#34495e'},
+            {x: 200, y: 480, width: 200, height: 20, color: '#34495e'},
+            {x: 600, y: 480, width: 200, height: 20, color: '#34495e'},
+            
+            {x: 480, y: 100, width: 20, height: 200, color: '#34495e'},
+            {x: 480, y: 400, width: 20, height: 200, color: '#34495e'},
+        ]
+    },
+    
+    // Map 2: Arena
+    {
+        name: "Arena",
+        walls: [
+            // Outer walls
+            {x: 0, y: 0, width: 1000, height: 20, color: '#2c3e50'},
+            {x: 0, y: 680, width: 1000, height: 20, color: '#2c3e50'},
+            {x: 0, y: 0, width: 20, height: 700, color: '#2c3e50'},
+            {x: 980, y: 0, width: 20, height: 700, color: '#2c3e50'},
+            
+            // Corner boxes
+            {x: 150, y: 150, width: 100, height: 100, color: '#34495e'},
+            {x: 750, y: 150, width: 100, height: 100, color: '#34495e'},
+            {x: 150, y: 450, width: 100, height: 100, color: '#34495e'},
+            {x: 750, y: 450, width: 100, height: 100, color: '#34495e'},
+            
+            // Center cover
+            {x: 450, y: 300, width: 100, height: 100, color: '#34495e'},
+        ]
+    },
+    
+    // Map 3: Maze
+    {
+        name: "The Maze",
+        walls: [
+            // Outer walls
+            {x: 0, y: 0, width: 1000, height: 20, color: '#2c3e50'},
+            {x: 0, y: 680, width: 1000, height: 20, color: '#2c3e50'},
+            {x: 0, y: 0, width: 20, height: 700, color: '#2c3e50'},
+            {x: 980, y: 0, width: 20, height: 700, color: '#2c3e50'},
+            
+            // Maze walls
+            {x: 200, y: 100, width: 20, height: 250, color: '#34495e'},
+            {x: 400, y: 150, width: 20, height: 400, color: '#34495e'},
+            {x: 600, y: 100, width: 20, height: 250, color: '#34495e'},
+            {x: 800, y: 150, width: 20, height: 400, color: '#34495e'},
+            
+            {x: 100, y: 300, width: 150, height: 20, color: '#34495e'},
+            {x: 300, y: 500, width: 150, height: 20, color: '#34495e'},
+            {x: 550, y: 300, width: 150, height: 20, color: '#34495e'},
+            {x: 700, y: 500, width: 150, height: 20, color: '#34495e'},
+        ]
+    },
+    
+    // Map 4: Corridors
+    {
+        name: "Corridors",
+        walls: [
+            // Outer walls
+            {x: 0, y: 0, width: 1000, height: 20, color: '#2c3e50'},
+            {x: 0, y: 680, width: 1000, height: 20, color: '#2c3e50'},
+            {x: 0, y: 0, width: 20, height: 700, color: '#2c3e50'},
+            {x: 980, y: 0, width: 20, height: 700, color: '#2c3e50'},
+            
+            // Horizontal corridors
+            {x: 100, y: 200, width: 800, height: 20, color: '#34495e'},
+            {x: 100, y: 480, width: 800, height: 20, color: '#34495e'},
+            
+            // Vertical barriers
+            {x: 300, y: 50, width: 20, height: 150, color: '#34495e'},
+            {x: 700, y: 50, width: 20, height: 150, color: '#34495e'},
+            {x: 300, y: 520, width: 20, height: 150, color: '#34495e'},
+            {x: 700, y: 520, width: 20, height: 150, color: '#34495e'},
+        ]
+    },
+    
+    // Map 5: Open field
+    {
+        name: "Open Field",
+        walls: [
+            // Outer walls
+            {x: 0, y: 0, width: 1000, height: 20, color: '#2c3e50'},
+            {x: 0, y: 680, width: 1000, height: 20, color: '#2c3e50'},
+            {x: 0, y: 0, width: 20, height: 700, color: '#2c3e50'},
+            {x: 980, y: 0, width: 20, height: 700, color: '#2c3e50'},
+            
+            // Scattered cover
+            {x: 250, y: 150, width: 80, height: 20, color: '#34495e'},
+            {x: 670, y: 150, width: 80, height: 20, color: '#34495e'},
+            {x: 250, y: 530, width: 80, height: 20, color: '#34495e'},
+            {x: 670, y: 530, width: 80, height: 20, color: '#34495e'},
+            
+            {x: 450, y: 300, width: 20, height: 100, color: '#34495e'},
+            {x: 550, y: 300, width: 20, height: 100, color: '#34495e'},
+        ]
+    }
+];
+
+let currentMapIndex = 0;
+let WALLS = MAPS[currentMapIndex].walls;
+let mapChangeTimer = Date.now();
+
+// Show map change notification
+function showMapNotification(mapName) {
+    const notification = document.createElement('div');
+    notification.style.position = 'absolute';
+    notification.style.top = '50%';
+    notification.style.left = '50%';
+    notification.style.transform = 'translate(-50%, -50%)';
+    notification.style.fontSize = '36px';
+    notification.style.fontWeight = 'bold';
+    notification.style.color = '#4cd';
+    notification.style.textShadow = '0 0 20px rgba(68, 204, 221, 0.8)';
+    notification.style.zIndex = '200';
+    notification.textContent = `MAP: ${mapName}`;
+    document.body.appendChild(notification);
+    
+    setTimeout(() => {
+        notification.remove();
+    }, 3000);
+} 
 
 let player = { 
-    x:450, y:300, vx:0, vy:0, 
-    renderX: 450, renderY: 300,
-    color:"#39f", id:null, hp:PLAYER_MAX_HP, 
+    x:500, y:350, vx:0, vy:0, 
+    renderX: 500, renderY: 350,
+    color:"#39f", id:null, hp:PLAYER_MAX_HP,
+    displayHP: PLAYER_MAX_HP, // For smooth HP animation
     username:"", deadUntil: 0, kills: 0 
 };
 let bullets = [], otherPlayers = {}, lastShot=0, keys=[];
@@ -475,15 +612,14 @@ socket.onmessage = ev=>{
       player.hp = data.hp;
       player.vx += data.knock.x;
       player.vy += data.knock.y;
-      hpText.textContent = Math.max(0, Math.round(player.hp));
   }
   
   if(data.type==="dead" && data.playerId===player.id){
       player.hp = 0;
+      player.displayHP = 0;
       player.deadUntil = data.deadUntil || Date.now() + RESP_COOLDOWN_MS;
       player.vx = 0; 
       player.vy = 0;
-      hpText.textContent = "0";
       
       // Show death message
       deathMessage.style.display = 'block';
@@ -499,11 +635,11 @@ socket.onmessage = ev=>{
   }
   
   if(data.type==="respawned" && data.playerId===player.id){
-      player.hp = PLAYER_MAX_HP; 
+      player.hp = PLAYER_MAX_HP;
+      player.displayHP = PLAYER_MAX_HP;
       player.deadUntil = 0;
-      player.x = 400; player.y = 300; player.vx = 0; player.vy = 0;
-      player.renderX = 400; player.renderY = 300;
-      hpText.textContent = "100";
+      player.x = 500; player.y = 350; player.vx = 0; player.vy = 0;
+      player.renderX = 500; player.renderY = 350;
       
       // Show respawn message
       deathMessage.textContent = "RESPAWNED!";
@@ -520,6 +656,13 @@ socket.onmessage = ev=>{
   if(data.type==="respawned" && data.playerId!==player.id && otherPlayers[data.playerId]){
       otherPlayers[data.playerId].hp = PLAYER_MAX_HP;
       otherPlayers[data.playerId].deadUntil = 0;
+  }
+  
+  // Handle map change from server
+  if(data.type==="mapChange"){
+      currentMapIndex = data.mapIndex;
+      WALLS = MAPS[currentMapIndex].walls;
+      showMapNotification(MAPS[currentMapIndex].name);
   }
   
   if(data.type==="kill") {
@@ -598,6 +741,19 @@ canvas.addEventListener("click", e=>{
   player.vy -= dy*0.02;
 });
 
+// Check collision between rectangle and walls
+function checkWallCollision(x, y, size) {
+    for(const wall of WALLS) {
+        if(x + size > wall.x && 
+           x - size < wall.x + wall.width &&
+           y + size > wall.y && 
+           y - size < wall.y + wall.height) {
+            return wall;
+        }
+    }
+    return null;
+}
+
 function update(){
   const IS_DEAD = player.deadUntil > Date.now();
   const IS_GAME_ACTIVE = startupScreen.style.display === 'none';
@@ -619,31 +775,64 @@ function update(){
     player.vy = 0;
   }
   
-  player.x += player.vx; player.y += player.vy;
-  player.vx *= FRICTION; player.vy *= FRICTION;
+  // Apply movement with wall collision
+  const newX = player.x + player.vx;
+  const newY = player.y + player.vy;
   
-  player.x = Math.max(12, Math.min(canvas.width-12, player.x));
-  player.y = Math.max(12, Math.min(canvas.height-12, player.y));
+  // Check X collision
+  if(!checkWallCollision(newX, player.y, PLAYER_SIZE)) {
+      player.x = newX;
+  } else {
+      player.vx = 0;
+  }
   
-  // Smooth interpolation for own player
-  player.renderX += (player.x - player.renderX) * 0.3;
-  player.renderY += (player.y - player.renderY) * 0.3;
+  // Check Y collision
+  if(!checkWallCollision(player.x, newY, PLAYER_SIZE)) {
+      player.y = newY;
+  } else {
+      player.vy = 0;
+  }
+  
+  player.vx *= FRICTION; 
+  player.vy *= FRICTION;
+  
+  // Keep player within bounds
+  player.x = Math.max(PLAYER_SIZE + 20, Math.min(canvas.width - PLAYER_SIZE - 20, player.x));
+  player.y = Math.max(PLAYER_SIZE + 20, Math.min(canvas.height - PLAYER_SIZE - 20, player.y));
+  
+  // Smooth interpolation for own player (increased smoothness)
+  player.renderX += (player.x - player.renderX) * 0.25;
+  player.renderY += (player.y - player.renderY) * 0.25;
+  
+  // Smooth HP animation
+  player.displayHP += (player.hp - player.displayHP) * 0.15;
 
-  // Smooth interpolation for other players
+  // Smooth interpolation for other players (increased smoothness)
   for(const id in otherPlayers) {
       const p = otherPlayers[id];
-      p.renderX += (p.x - p.renderX) * 0.2;
-      p.renderY += (p.y - p.renderY) * 0.2;
+      if(!p.renderX) p.renderX = p.x;
+      if(!p.renderY) p.renderY = p.y;
+      if(!p.displayHP) p.displayHP = p.hp;
+      
+      p.renderX += (p.x - p.renderX) * 0.25;
+      p.renderY += (p.y - p.renderY) * 0.25;
+      p.displayHP += (p.hp - p.displayHP) * 0.15;
   }
 
   // Update bullets - DON'T do client-side collision, let server handle it
   bullets.forEach(b => { 
       b.x += b.dx; 
       b.y += b.dy;
+      
+      // Check bullet-wall collision
+      if(checkWallCollision(b.x, b.y, BULLET_SIZE)) {
+          b.hit = true;
+      }
   });
   
-  // Remove out-of-bounds bullets only
+  // Remove hit bullets and out-of-bounds bullets
   bullets = (!IS_GAME_ACTIVE || IS_DEAD) ? [] : bullets.filter(b => 
+      !b.hit && 
       b.x>-20 && b.x<canvas.width+20 && 
       b.y>-20 && b.y<canvas.height+20 && 
       Date.now()-b.t<8000
@@ -678,8 +867,8 @@ function update(){
       ` | Cooldown: ${cooldownTime.toFixed(2)}s` : ""; 
   }
   
-  // Update HP display
-  hpText.textContent = Math.max(0, Math.round(player.hp));
+  // Update HP display with smooth animation
+  hpText.textContent = Math.max(0, Math.round(player.displayHP));
   
   // Update leaderboard
   updateLeaderboard();
@@ -738,15 +927,15 @@ function drawPlayer(p, isMe) {
     ctx.fillStyle = p.color;
     ctx.fillRect(x - PLAYER_SIZE, y - PLAYER_SIZE, PLAYER_SIZE * 2, PLAYER_SIZE * 2);
 
-    // Draw Health Bar - FIXED: Always calculate from current HP value
-    const currentHP = Math.max(0, Math.min(PLAYER_MAX_HP, p.hp));
+    // Draw Health Bar - Use displayHP for smooth animation
+    const currentHP = Math.max(0, Math.min(PLAYER_MAX_HP, p.displayHP || p.hp));
     const hpPercent = currentHP / PLAYER_MAX_HP;
     
     // Red background
-    ctx.fillStyle = 'red';
+    ctx.fillStyle = '#8B0000';
     ctx.fillRect(x - 20, y - PLAYER_SIZE - 10, 40, 5);
     
-    // Health bar color based on HP percentage
+    // Health bar color based on HP percentage (smooth gradient)
     if(hpPercent > 0.5) {
         ctx.fillStyle = '#00ff00'; // Bright green
     } else if(hpPercent > 0.25) {
@@ -793,6 +982,23 @@ function draw(){
   ctx.clearRect(0,0,canvas.width,canvas.height);
 
   if(startupScreen.style.display !== 'none') return;
+
+  // Draw map name
+  ctx.fillStyle = 'rgba(68, 204, 221, 0.6)';
+  ctx.font = 'bold 16px Arial';
+  ctx.textAlign = 'center';
+  ctx.fillText(MAPS[currentMapIndex].name, canvas.width / 2, 40);
+
+  // Draw map walls
+  WALLS.forEach(wall => {
+      ctx.fillStyle = wall.color;
+      ctx.fillRect(wall.x, wall.y, wall.width, wall.height);
+      
+      // Add border for depth
+      ctx.strokeStyle = '#1a252f';
+      ctx.lineWidth = 2;
+      ctx.strokeRect(wall.x, wall.y, wall.width, wall.height);
+  });
 
   for(const id in otherPlayers){
     const p = otherPlayers[id];
