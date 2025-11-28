@@ -147,7 +147,8 @@ wss.on("connection", ws=>{
   // Initialize player with deadUntil: 0 and kills: 0
   players.set(myId,{
     ws, x:500, y:350, vx:0, vy:0, hp:100,
-    username:"P"+myId, color, deadUntil: 0, kills: 0
+    username:"P"+myId, color, deadUntil: 0, kills: 0,
+    lastShot: 0 // Track last shot time server-side
   });
   
   console.log("📡 Player connected:", myId, "| Total players:", players.size);
@@ -194,6 +195,32 @@ wss.on("connection", ws=>{
         username: me.username,
         message: data.message.slice(0,120)
       });
+      return;
+    }
+    
+    // --- Shoot command with server-side rate limiting ---
+    if(data.type==="shoot" && typeof data.angle==="number"){
+      const now = Date.now();
+      const SHOT_COOLDOWN = 300; // 300ms cooldown
+      
+      // Enforce cooldown on server
+      if(now - (me.lastShot || 0) < SHOT_COOLDOWN) {
+        return; // Reject shot if too fast
+      }
+      
+      me.lastShot = now;
+      
+      // Create bullet on server
+      const dx = Math.cos(data.angle) * 10;
+      const dy = Math.sin(data.angle) * 10;
+      bullets.push({
+        x: data.x || me.x,
+        y: data.y || me.y,
+        dx: dx,
+        dy: dy,
+        t: now
+      });
+      
       return;
     }
 
