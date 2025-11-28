@@ -390,6 +390,11 @@ const BULLET_DAMAGE = 20, KNOCKBACK = 5;
 const RESP_COOLDOWN_MS = 3000;
 const MAP_CHANGE_INTERVAL = 180000; // 3 minutes in milliseconds
 
+// Fixed timestep for consistent speed across all devices
+const FIXED_TIMESTEP = 1000 / 60; // 60 FPS
+let lastFrameTime = Date.now();
+let accumulator = 0;
+
 // Multiple map layouts
 const MAPS = [
     // Map 1: Cross layout
@@ -747,6 +752,14 @@ canvas.addEventListener("click", e=>{
   const dx = Math.cos(angle)*BULLET_SPEED;
   const dy = Math.sin(angle)*BULLET_SPEED;
   
+  // Send shoot command to server instead of creating bullet locally
+  socket.send(JSON.stringify({
+    type:"shoot",
+    angle: angle,
+    x: player.x,
+    y: player.y
+  }));
+  
   bullets.push({x:player.x,y:player.y,dx,dy,t:Date.now(),owner:player.id});
   
   player.vx -= dx*0.02;
@@ -769,49 +782,22 @@ function checkWallCollision(x, y, size) {
 function update(){
   const IS_DEAD = player.deadUntil > Date.now();
   const IS_GAME_ACTIVE = startupScreen.style.display === 'none';
+  
+  // Fixed timestep - ensures same speed on all devices
+  const currentTime = Date.now();
+  const deltaTime = currentTime - lastFrameTime;
+  lastFrameTime = currentTime;
+  accumulator += deltaTime;
+  
+  // Cap accumulator to prevent spiral of death
+  if(accumulator > 200) accumulator = 200;
+  
+  // Update with fixed timestep
+  while(accumulator >= FIXED_TIMESTEP) {
+    updatePhysics(IS_DEAD, IS_GAME_ACTIVE);
+    accumulator -= FIXED_TIMESTEP;
+  }
 
-  if(!IS_DEAD && IS_GAME_ACTIVE){
-    let moveX=0, moveY=0;
-    if(keys.w||keys.ArrowUp) moveY=-1;
-    if(keys.s||keys.ArrowDown) moveY=1;
-    if(keys.a||keys.ArrowLeft) moveX=-1;
-    if(keys.d||keys.ArrowRight) moveX=1;
-
-    if(moveX||moveY){
-      const mag = Math.hypot(moveX, moveY)||1;
-      player.vx += (moveX/mag)*SPEED*0.3;
-      player.vy += (moveY/mag)*SPEED*0.3;
-    }
-  } else {
-    player.vx = 0;
-    player.vy = 0;
-  }
-  
-  // Apply movement with wall collision
-  const newX = player.x + player.vx;
-  const newY = player.y + player.vy;
-  
-  // Check X collision
-  if(!checkWallCollision(newX, player.y, PLAYER_SIZE)) {
-      player.x = newX;
-  } else {
-      player.vx = 0;
-  }
-  
-  // Check Y collision
-  if(!checkWallCollision(player.x, newY, PLAYER_SIZE)) {
-      player.y = newY;
-  } else {
-      player.vy = 0;
-  }
-  
-  player.vx *= FRICTION; 
-  player.vy *= FRICTION;
-  
-  // Keep player within bounds
-  player.x = Math.max(PLAYER_SIZE + 20, Math.min(canvas.width - PLAYER_SIZE - 20, player.x));
-  player.y = Math.max(PLAYER_SIZE + 20, Math.min(canvas.height - PLAYER_SIZE - 20, player.y));
-  
   // Smooth interpolation for own player (increased smoothness)
   player.renderX += (player.x - player.renderX) * 0.25;
   player.renderY += (player.y - player.renderY) * 0.25;
@@ -831,7 +817,7 @@ function update(){
       p.displayHP += (p.hp - p.displayHP) * 0.15;
   }
 
-  // Update bullets - DON'T do client-side collision, let server handle it
+  // Update bullets
   bullets.forEach(b => { 
       b.x += b.dx; 
       b.y += b.dy;
@@ -884,6 +870,50 @@ function update(){
   
   // Update leaderboard
   updateLeaderboard();
+}
+
+function updatePhysics(IS_DEAD, IS_GAME_ACTIVE) {
+  if(!IS_DEAD && IS_GAME_ACTIVE){
+    let moveX=0, moveY=0;
+    if(keys.w||keys.ArrowUp) moveY=-1;
+    if(keys.s||keys.ArrowDown) moveY=1;
+    if(keys.a||keys.ArrowLeft) moveX=-1;
+    if(keys.d||keys.ArrowRight) moveX=1;
+
+    if(moveX||moveY){
+      const mag = Math.hypot(moveX, moveY)||1;
+      player.vx += (moveX/mag)*SPEED*0.3;
+      player.vy += (moveY/mag)*SPEED*0.3;
+    }
+  } else {
+    player.vx = 0;
+    player.vy = 0;
+  }
+  
+  // Apply movement with wall collision
+  const newX = player.x + player.vx;
+  const newY = player.y + player.vy;
+  
+  // Check X collision
+  if(!checkWallCollision(newX, player.y, PLAYER_SIZE)) {
+      player.x = newX;
+  } else {
+      player.vx = 0;
+  }
+  
+  // Check Y collision
+  if(!checkWallCollision(player.x, newY, PLAYER_SIZE)) {
+      player.y = newY;
+  } else {
+      player.vy = 0;
+  }
+  
+  player.vx *= FRICTION; 
+  player.vy *= FRICTION;
+  
+  // Keep player within bounds
+  player.x = Math.max(PLAYER_SIZE + 20, Math.min(canvas.width - PLAYER_SIZE - 20, player.x));
+  player.y = Math.max(PLAYER_SIZE + 20, Math.min(canvas.height - PLAYER_SIZE - 20, player.y));
 }
 
 function updateLeaderboard() {
