@@ -42,7 +42,8 @@ const MAPS = [
         {x: 750, y: 150, width: 100, height: 100},
         {x: 150, y: 450, width: 100, height: 100},
         {x: 750, y: 450, width: 100, height: 100},
-        {x: 450, y: 300, width: 100, height: 100},
+        {x: 420, y: 250, width: 80, height: 80},
+        {x: 520, y: 370, width: 80, height: 80},
     ],
     
     // Map 3: Maze
@@ -114,6 +115,14 @@ setInterval(() => {
     currentMapIndex = (currentMapIndex + 1) % MAPS.length;
     WALLS = MAPS[currentMapIndex];
     console.log(`🗺️ Map changed to index ${currentMapIndex}`);
+    
+    // Reset all players to spawn position to prevent getting stuck in walls
+    for(const [id, p] of players) {
+        p.x = 500;
+        p.y = 350;
+        p.vx = 0;
+        p.vy = 0;
+    }
     
     // Broadcast map change to all players
     const msg = JSON.stringify({type: "mapChange", mapIndex: currentMapIndex});
