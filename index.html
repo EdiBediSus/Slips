@@ -1,3 +1,4 @@
+
 <!DOCTYPE html>
 <html lang="en">
 <head>
@@ -397,115 +398,125 @@ let accumulator = 0;
 
 // Multiple map layouts
 const MAPS = [
-    // Map 1: Cross layout
+
+    // 🎄 1. CHRISTMAS LAND (OPEN)
     {
-        name: "The Cross",
+        name: "Christmas Land",
         walls: [
             // Outer walls
             {x: 0, y: 0, width: 1000, height: 20, color: '#2c3e50'},
             {x: 0, y: 680, width: 1000, height: 20, color: '#2c3e50'},
             {x: 0, y: 0, width: 20, height: 700, color: '#2c3e50'},
             {x: 980, y: 0, width: 20, height: 700, color: '#2c3e50'},
-            
-            // Cross barriers
+
+            // Inner maze (horizontal)
+            {x: 300, y: 150, width: 400, height: 20, color: "red"},
+            {x: 150, y: 280, width: 250, height: 20, color: "red"},
+            {x: 600, y: 280, width: 250, height: 20, color: "red"},
+            {x: 300, y: 410, width: 400, height: 20, color: "red"},
+            {x: 150, y: 540, width: 250, height: 20, color: "red"},
+            {x: 600, y: 540, width: 250, height: 20, color: "red"},
+
+            // Inner maze (vertical)
+            {x: 150, y: 280, width: 20, height: 260, color: "red"},
+            {x: 830, y: 280, width: 20, height: 260, color: "red"},
+
+            {x: 470, y: 150, width: 20, height: 130, color: "red"},
+            {x: 470, y: 410, width: 20, height: 130, color: "red"}
+	   
+
+        ]
+    },
+
+    // 2. CROSS MAP
+    {
+        name: "The Cross",
+        walls: [
+            {x: 0, y: 0, width: 1000, height: 20, color: '#2c3e50'},
+            {x: 0, y: 680, width: 1000, height: 20, color: '#2c3e50'},
+            {x: 0, y: 0, width: 20, height: 700, color: '#2c3e50'},
+            {x: 980, y: 0, width: 20, height: 700, color: '#2c3e50'},
             {x: 200, y: 200, width: 200, height: 20, color: '#34495e'},
             {x: 600, y: 200, width: 200, height: 20, color: '#34495e'},
             {x: 200, y: 480, width: 200, height: 20, color: '#34495e'},
             {x: 600, y: 480, width: 200, height: 20, color: '#34495e'},
-            
             {x: 480, y: 100, width: 20, height: 200, color: '#34495e'},
-            {x: 480, y: 400, width: 20, height: 200, color: '#34495e'},
+            {x: 480, y: 400, width: 20, height: 200, color: '#34495e'}
         ]
     },
-    
-    // Map 2: Arena
+
+    // 3. ARENA
     {
         name: "Arena",
         walls: [
-            // Outer walls
             {x: 0, y: 0, width: 1000, height: 20, color: '#2c3e50'},
             {x: 0, y: 680, width: 1000, height: 20, color: '#2c3e50'},
             {x: 0, y: 0, width: 20, height: 700, color: '#2c3e50'},
             {x: 980, y: 0, width: 20, height: 700, color: '#2c3e50'},
-            
-            // Corner boxes
             {x: 150, y: 150, width: 100, height: 100, color: '#34495e'},
             {x: 750, y: 150, width: 100, height: 100, color: '#34495e'},
             {x: 150, y: 450, width: 100, height: 100, color: '#34495e'},
             {x: 750, y: 450, width: 100, height: 100, color: '#34495e'},
-            
-            // Center cover - MOVED so spawn is safe
             {x: 420, y: 250, width: 80, height: 80, color: '#34495e'},
-            {x: 520, y: 370, width: 80, height: 80, color: '#34495e'},
+            {x: 520, y: 370, width: 80, height: 80, color: '#34495e'}
         ]
     },
-    
-    // Map 3: Maze
+
+    // 4. MAZE
     {
         name: "The Maze",
         walls: [
-            // Outer walls
             {x: 0, y: 0, width: 1000, height: 20, color: '#2c3e50'},
             {x: 0, y: 680, width: 1000, height: 20, color: '#2c3e50'},
             {x: 0, y: 0, width: 20, height: 700, color: '#2c3e50'},
             {x: 980, y: 0, width: 20, height: 700, color: '#2c3e50'},
-            
-            // Maze walls
             {x: 200, y: 100, width: 20, height: 250, color: '#34495e'},
             {x: 400, y: 150, width: 20, height: 400, color: '#34495e'},
             {x: 600, y: 100, width: 20, height: 250, color: '#34495e'},
             {x: 800, y: 150, width: 20, height: 400, color: '#34495e'},
-            
             {x: 100, y: 300, width: 150, height: 20, color: '#34495e'},
             {x: 300, y: 500, width: 150, height: 20, color: '#34495e'},
             {x: 550, y: 300, width: 150, height: 20, color: '#34495e'},
-            {x: 700, y: 500, width: 150, height: 20, color: '#34495e'},
+            {x: 700, y: 500, width: 150, height: 20, color: '#34495e'}
         ]
     },
-    
-    // Map 4: Corridors
+
+    // 5. CORRIDORS
     {
         name: "Corridors",
         walls: [
-            // Outer walls
             {x: 0, y: 0, width: 1000, height: 20, color: '#2c3e50'},
             {x: 0, y: 680, width: 1000, height: 20, color: '#2c3e50'},
             {x: 0, y: 0, width: 20, height: 700, color: '#2c3e50'},
             {x: 980, y: 0, width: 20, height: 700, color: '#2c3e50'},
-            
-            // Horizontal corridors
             {x: 100, y: 200, width: 800, height: 20, color: '#34495e'},
             {x: 100, y: 480, width: 800, height: 20, color: '#34495e'},
-            
-            // Vertical barriers
             {x: 300, y: 50, width: 20, height: 150, color: '#34495e'},
             {x: 700, y: 50, width: 20, height: 150, color: '#34495e'},
             {x: 300, y: 520, width: 20, height: 150, color: '#34495e'},
-            {x: 700, y: 520, width: 20, height: 150, color: '#34495e'},
+            {x: 700, y: 520, width: 20, height: 150, color: '#34495e'}
         ]
     },
-    
-    // Map 5: Open field
+
+    // 6. OPEN FIELD
     {
         name: "Open Field",
         walls: [
-            // Outer walls
             {x: 0, y: 0, width: 1000, height: 20, color: '#2c3e50'},
             {x: 0, y: 680, width: 1000, height: 20, color: '#2c3e50'},
             {x: 0, y: 0, width: 20, height: 700, color: '#2c3e50'},
             {x: 980, y: 0, width: 20, height: 700, color: '#2c3e50'},
-            
-            // Scattered cover
             {x: 250, y: 150, width: 80, height: 20, color: '#34495e'},
             {x: 670, y: 150, width: 80, height: 20, color: '#34495e'},
             {x: 250, y: 530, width: 80, height: 20, color: '#34495e'},
             {x: 670, y: 530, width: 80, height: 20, color: '#34495e'},
-            
             {x: 450, y: 300, width: 20, height: 100, color: '#34495e'},
-            {x: 550, y: 300, width: 20, height: 100, color: '#34495e'},
+            {x: 550, y: 300, width: 20, height: 100, color: '#34495e'}
         ]
     }
+
 ];
+
 
 let currentMapIndex = 0;
 let WALLS = MAPS[currentMapIndex].walls;
@@ -968,6 +979,22 @@ function drawPlayer(p, isMe) {
     // Draw the player as a rectangle/block
     ctx.fillStyle = p.color;
     ctx.fillRect(x - PLAYER_SIZE, y - PLAYER_SIZE, PLAYER_SIZE * 2, PLAYER_SIZE * 2);
+    
+    // Santa hat
+    ctx.fillStyle = "red";
+    ctx.beginPath();
+    ctx.moveTo(x - 12, y - PLAYER_SIZE - 2);
+    ctx.lineTo(x + 12, y - PLAYER_SIZE - 2);
+    ctx.lineTo(x, y - PLAYER_SIZE - 18);
+    ctx.closePath();
+    ctx.fill();
+
+    ctx.fillStyle = "white";
+    ctx.beginPath();
+    ctx.arc(x, y - PLAYER_SIZE - 18, 4, 0, Math.PI * 2);
+    ctx.fill();
+
+    ctx.fillRect(x - 12, y - PLAYER_SIZE - 2, 24, 4);
 
     // Draw Health Bar - Use displayHP for smooth animation
     const currentHP = Math.max(0, Math.min(PLAYER_MAX_HP, p.displayHP || p.hp));
@@ -1022,6 +1049,7 @@ function drawPlayer(p, isMe) {
 
 function draw(){
   ctx.clearRect(0,0,canvas.width,canvas.height);
+  drawSnow();
 
   if(startupScreen.style.display !== 'none') return;
 
@@ -1048,6 +1076,31 @@ function draw(){
   }
   
   drawPlayer(player, true);
+}
+// Snow effect
+let snowflakes = [];
+for (let i = 0; i < 120; i++) {
+    snowflakes.push({
+        x: Math.random()*canvas.width,
+        y: Math.random()*canvas.height,
+        size: Math.random()*3+1,
+        speed: Math.random()*1+0.5
+    });
+}
+
+function drawSnow() {
+    ctx.fillStyle = "white";
+    for (let f of snowflakes) {
+        ctx.beginPath();
+        ctx.arc(f.x, f.y, f.size, 0, Math.PI*2);
+        ctx.fill();
+
+        f.y += f.speed;
+        if (f.y > canvas.height) {
+            f.y = -5;
+            f.x = Math.random()*canvas.width;
+        }
+    }
 }
 
 function gameLoop(){
