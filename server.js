@@ -18,7 +18,34 @@ const MAP_CHANGE_INTERVAL = 180000; // 3 minutes
 
 // Multiple map layouts - must match client
 const MAPS = [
-    // Map 1: Cross layout
+
+    // 🎄 1. CHRISTMAS LAND (OPEN)
+    [
+    // Outer border
+        {x: 0, y: 0, width: 1000, height: 20},
+        {x: 0, y: 680, width: 1000, height: 20},
+        {x: 0, y: 0, width: 20, height: 700},
+        {x: 980, y: 0, width: 20, height: 700},
+
+        // Inner maze (horizontal)
+        {x: 300, y: 150, width: 400, height: 20},
+        {x: 150, y: 280, width: 250, height: 20},
+        {x: 600, y: 280, width: 250, height: 20},
+        {x: 300, y: 410, width: 400, height: 20},
+        {x: 150, y: 540, width: 250, height: 20},
+        {x: 600, y: 540, width: 250, height: 20},
+
+        // Inner maze (vertical)
+        {x: 150, y: 280, width: 20, height: 260},
+        {x: 830, y: 280, width: 20, height: 260},
+
+        {x: 470, y: 150, width: 20, height: 130},
+        {x: 470, y: 410, width: 20, height: 130}
+       
+
+    ],
+
+    // 2. CROSS MAP
     [
         {x: 0, y: 0, width: 1000, height: 20},
         {x: 0, y: 680, width: 1000, height: 20},
@@ -29,10 +56,10 @@ const MAPS = [
         {x: 200, y: 480, width: 200, height: 20},
         {x: 600, y: 480, width: 200, height: 20},
         {x: 480, y: 100, width: 20, height: 200},
-        {x: 480, y: 400, width: 20, height: 200},
+        {x: 480, y: 400, width: 20, height: 200}
     ],
-    
-    // Map 2: Arena
+
+    // 3. ARENA
     [
         {x: 0, y: 0, width: 1000, height: 20},
         {x: 0, y: 680, width: 1000, height: 20},
@@ -43,10 +70,10 @@ const MAPS = [
         {x: 150, y: 450, width: 100, height: 100},
         {x: 750, y: 450, width: 100, height: 100},
         {x: 420, y: 250, width: 80, height: 80},
-        {x: 520, y: 370, width: 80, height: 80},
+        {x: 520, y: 370, width: 80, height: 80}
     ],
-    
-    // Map 3: Maze
+
+    // 4. MAZE
     [
         {x: 0, y: 0, width: 1000, height: 20},
         {x: 0, y: 680, width: 1000, height: 20},
@@ -59,10 +86,10 @@ const MAPS = [
         {x: 100, y: 300, width: 150, height: 20},
         {x: 300, y: 500, width: 150, height: 20},
         {x: 550, y: 300, width: 150, height: 20},
-        {x: 700, y: 500, width: 150, height: 20},
+        {x: 700, y: 500, width: 150, height: 20}
     ],
-    
-    // Map 4: Corridors
+
+    // 5. CORRIDORS
     [
         {x: 0, y: 0, width: 1000, height: 20},
         {x: 0, y: 680, width: 1000, height: 20},
@@ -73,10 +100,10 @@ const MAPS = [
         {x: 300, y: 50, width: 20, height: 150},
         {x: 700, y: 50, width: 20, height: 150},
         {x: 300, y: 520, width: 20, height: 150},
-        {x: 700, y: 520, width: 20, height: 150},
+        {x: 700, y: 520, width: 20, height: 150}
     ],
-    
-    // Map 5: Open field
+
+    // 6. OPEN FIELD
     [
         {x: 0, y: 0, width: 1000, height: 20},
         {x: 0, y: 680, width: 1000, height: 20},
@@ -87,9 +114,11 @@ const MAPS = [
         {x: 250, y: 530, width: 80, height: 20},
         {x: 670, y: 530, width: 80, height: 20},
         {x: 450, y: 300, width: 20, height: 100},
-        {x: 550, y: 300, width: 20, height: 100},
+        {x: 550, y: 300, width: 20, height: 100}
     ]
+
 ];
+
 
 let currentMapIndex = 0;
 let WALLS = MAPS[currentMapIndex];
